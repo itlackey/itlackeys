@@ -1,5 +1,4 @@
 import os
-import sys
 import glob
 import openai
 from aider.coders import Coder
@@ -34,13 +33,13 @@ def perform_action(files, action, update_files=False):
         response = coder.run(action)
     else:
         response = action
-        
+
     return response
 
 def main():
     parser = argparse.ArgumentParser(description="Script to perform an action on files.")
     parser.add_argument("glob_pattern", type=str, help="The glob pattern for file matching.")
-    parser.add_argument("action_file_path", type=str, help="The path to the action file.")
+    parser.add_argument("action", type=str, help="The action to be performed on the files.")
     parser.add_argument(
         "--update-files",
         action="store_true",
@@ -50,7 +49,12 @@ def main():
     args = parser.parse_args()
 
     load_dotenv()
-    action = read_action_from_file(args.action_file_path)
+
+    if os.path.isfile(args.action):
+        action = read_action_from_file(args.action)
+    else:
+        action = args.action
+
     files = glob.glob(args.glob_pattern)
     response = perform_action(files, action, update_files=args.update_files)
     print(f'Response: {response}')
