@@ -2,3 +2,5 @@ example-app/
 .aider*
 venv
 .env
+oai.json
+.cache/42/cache.db

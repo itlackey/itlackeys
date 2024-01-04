@@ -5,6 +5,7 @@ from aider.coders import Coder
 from aider import  models
 from dotenv import load_dotenv
 import argparse
+import autogen
 
 def read_action_from_file(file_path):
     with open(file_path, 'r') as file:
@@ -40,13 +41,48 @@ def review_files(files, action):
     """
     Use Autogen to review file based on the action prompt. Then output the output of the autogen review.
     """
+
+    config_list_gpt35 = autogen.config_list_from_json(
+        env_or_file="oai.json",
+        filter_dict={
+            "model": {
+                "gpt-3.5-turbo",
+                "gpt-3.5-turbo-16k",
+                "gpt-3.5-turbo-0301",
+                "chatgpt-35-turbo-0301",
+                "gpt-35-turbo-v0301",
+            },
+        },
+    )
+
+    llm_config = {"config_list": config_list_gpt35, "cache_seed": 42}
+    user_proxy = autogen.UserProxyAgent(
+        name="User_proxy",
+        system_message="A human admin.",
+        code_execution_config={"last_n_messages": 2, "work_dir": ".groupchat"},
+        human_input_mode="NEVER",
+    )
+    coder = autogen.AssistantAgent(
+        name="Coder",
+        system_message="You are a senior software engineer. Reply `TERMINATE` in the end when everything is done.",    
+        llm_config=llm_config,
+    )
+    reviewer = autogen.AssistantAgent(
+        name="reviewer",
+        system_message="You are a code reviewer. Reply `TERMINATE` in the end when everything is done.",
+        llm_config=llm_config,
+    )
+
+    groupchat = autogen.GroupChat(agents=[user_proxy, coder, reviewer], messages=[], max_round=12)
+    manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=llm_config)
+
     responses = []
     for file in files:
-        group_chat = autogen.GroupChat.create()
-        group_chat.add_file(file)
-        group_chat.add_action(action)
-        response = group_chat.run()
-        responses.append((file, response))
+        # read file content from file
+        file_content = open(file, 'r').read()
+        
+        user_proxy.initiate_chat(manager, message=action + "\n\nFile: " + file_content, clear_history=True)
+        # type exit to terminate the chat
     return responses
 
 def main():
