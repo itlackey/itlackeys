@@ -1,0 +1,3 @@
+aider-chat
+openai
+configargparse==1.7
