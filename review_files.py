@@ -4,8 +4,6 @@ import glob
 import openai
 from aider.coders import Coder
 from aider import  models
-# from pathlib import Path
-# import configargparse
 
 def read_action_from_file(file_path):
     with open(file_path, 'r') as file:
@@ -22,20 +20,6 @@ def perform_action(files, action):
     return response
 
 def main(glob_pattern, action_file_path):
-    # conf_fname = Path(".aider.conf.yml")
-
-    # default_config_files = [conf_fname.resolve()]  # CWD
-    # default_config_files.append(Path("~/.aider.conf.yml"))  # homedir
-    # default_config_files = list(map(str, default_config_files))
-    # parser = configargparse.ArgumentParser(
-    #     add_config_file_help=False,
-    #     default_config_files=default_config_files,
-    #     config_file_parser_class=configargparse.YAMLConfigFileParser,
-    #     auto_env_var_prefix="AIDER_",
-    # )
-    # args = parser.parse_args()
-    # print(args)
-
     action = read_action_from_file(action_file_path)
     files = glob.glob(glob_pattern)
     response = perform_action(files, action)
