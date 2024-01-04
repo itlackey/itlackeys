@@ -40,7 +40,14 @@ def review_files(files, action):
     """
     Use Autogen to review file based on the action prompt. Then output the output of the autogen review.
     """
-    pass
+    responses = []
+    for file in files:
+        group_chat = autogen.GroupChat.create()
+        group_chat.add_file(file)
+        group_chat.add_action(action)
+        response = group_chat.run()
+        responses.append((file, response))
+    return responses
 
 def main():
     parser = argparse.ArgumentParser(description="Script to perform an action on files.")
