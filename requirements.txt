@@ -2,3 +2,4 @@ aider-chat
 openai
 #configargparse==1.7
 python-dotenv==0.19.2
+pyautogen
