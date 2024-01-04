@@ -31,15 +31,21 @@ def perform_action(files, action, update_files=False):
         model =  models.Model.create(model_name, client)
         coder = Coder.create(client=client, main_model=model, fnames=files)
         response = coder.run(action)
-    else:
-        response = action
+    else:                 
+        response = review_files(files, action)
 
     return response
 
+def review_files(files, action):
+    """
+    Use Autogen to review file based on the action prompt. Then output the output of the autogen review.
+    """
+    pass
+
 def main():
     parser = argparse.ArgumentParser(description="Script to perform an action on files.")
-    parser.add_argument("glob_pattern", type=str, help="The glob pattern for file matching.")
-    parser.add_argument("action", type=str, help="The action to be performed on the files.")
+    parser.add_argument("files", nargs='*', help="The glob pattern for file matching or list of files.")
+    parser.add_argument("--action", type=str, help="The action to be performed on the files.")
     parser.add_argument(
         "--update-files",
         action="store_true",
@@ -55,9 +61,22 @@ def main():
     else:
         action = args.action
 
-    files = glob.glob(args.glob_pattern)
-    response = perform_action(files, action, update_files=args.update_files)
-    print(f'Response: {response}')
+    files = []
+    for file_pattern in args.files:
+        if os.path.isfile(file_pattern):
+            files.append(file_pattern)
+        else:
+            files.extend(glob.glob(file_pattern))
+
+    if not files:
+        print("No files found.")
+        return
+    else:
+        print(f'Files: {files}')
+        for file in files:
+            print(f'File: {file}')    
+            response = perform_action([file], action, update_files=args.update_files)
+            print(f'Response: {response}')
 
 if __name__ == "__main__":
     main()
