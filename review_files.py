@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 import argparse
 import autogen
 
+__code_exec_dir__ = ".cache/user_proxy"
+__review_output_dir__ = ".cache/reviews"
 
 config_list_gpt35 = autogen.config_list_from_json(
     env_or_file="oai.json",
@@ -36,7 +38,7 @@ config_list_local = autogen.config_list_from_json(
 user_proxy = autogen.UserProxyAgent(
     name="user_proxy",
     system_message="A human admin. If the code is executing successfully, please reply `TERMINATE`.",
-    code_execution_config={"last_n_messages": 2, "work_dir": ".cache/user_proxy"},
+    code_execution_config={"last_n_messages": 2, "work_dir": __code_exec_dir__},
     human_input_mode="NEVER"
 )
 review_proxy = autogen.UserProxyAgent(
@@ -55,10 +57,10 @@ review_proxy = autogen.UserProxyAgent(
 def write_to_markdown(messages: Annotated[List[str], "List of messages to write."], file_name: Annotated[str, "Name of the file to write the messages to."]) -> str:
     
     
-    if not os.path.exists(".cache/user_proxy"):
-        os.makedirs(".cache/user_proxy")
+    if not os.path.exists(__review_output_dir__):
+        os.makedirs(__review_output_dir__)
 
-    file_name = os.path.join(".cache/user_proxy", file_name)
+    file_name = os.path.join(__review_output_dir__, file_name)
     
     file_dir = os.path.dirname(file_name)
     if not os.path.exists(file_dir):
@@ -70,8 +72,6 @@ def write_to_markdown(messages: Annotated[List[str], "List of messages to write.
     return f"Messages written to {file_name}."
 
 def read_action_from_file(file_path):
-    file_path = os.path.join(".cache/user_proxy", file_path)
-
     if os.path.exists(file_path):
         with open(file_path, 'r') as file:
             action = file.read().strip()
@@ -123,63 +123,63 @@ def review_file(file, action, cache_seed):
 
     llm_config = {"config_list": config_list_local, "cache_seed": cache_seed}
 
-    coder = autogen.AssistantAgent(
-        name="coder",        
-        system_message="You are a senior software engineer. You will review provided code and provide suggested edits based on the provided action. " +           
-            " Reply `TERMINATE` in the end when everything is done.",
-        llm_config=llm_config,
-    )
-    reviewer = autogen.AssistantAgent(
-        name="reviewer",    
-        system_message="You are a code reviewer. When the coder is done, review their suggestions and the existing code." +
-        " Ensure that the changes are of high quality and follow best practices. " +
-        " Do not allow the renaming of files in the suggested changes. " +     
-        " Reply `TERMINATE` in the end when everything is done." +
-        " If the code is executing successfully and the changes are acceptable, please reply `TERMINATE`.",
-        llm_config=llm_config,
-    )
-
 
     # read file content from file
     file_content = open(file, 'r').read()
     
-    #print(file_content)
-    prompt = "Review the specified ACTION:  Examine the existing code between BEGIN CODE BLOCK: and END CODE BLOCK."
-    prompt += " Reply with ONLY a list of changes that should be made and the suggested code. "
-    prompt += "\n\nFILENAME: " + file + "\n\nACTION: " + action + "\n\nBEGIN CODE BLOCK:\n\n" + file_content + "\n\nEND CODE BLOCK"
+    # prompt = "Review the specified ACTION:  Examine the existing code between BEGIN CODE BLOCK: and END CODE BLOCK."
+    # prompt += " Reply with ONLY a list of changes that should be made and the suggested code. "
+    # prompt += "\n\nFILENAME: " + file + "\n\nACTION: " + action + "\n\nBEGIN CODE BLOCK:\n\n" + file_content + "\n\nEND CODE BLOCK"
 
 
-    prompt =  "REQUEST: " + action + "\n\n" + "CODE: \n\n"  + file_content
+    #prompt =  "REQUEST: " + action + "\n\n" + "CODE: \n\n"  + file_content
     #print(prompt)
 
 
-    groupchat = autogen.GroupChat(agents=[coder, reviewer, review_proxy], messages=[], max_round=12,
-                                  speaker_selection_method="round_robin")
-    
 
-    manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=llm_config)
+    responses = []
+
+
+    # reviewer = autogen.AssistantAgent(
+    #     name="reviewer",    
+    #     system_message="You are a code reviewer. When the coder is done, review their suggestions and the existing code." +
+    #     " Ensure that the changes are of high quality and follow best practices. " +
+    #     " Do not allow the renaming of files in the suggested changes. " +     
+    #     " Reply `TERMINATE` in the end when everything is done." +
+    #     " If the code is executing successfully and the changes are acceptable, please reply `TERMINATE`.",
+    #     llm_config=llm_config,
+    # )
+
+    # groupchat = autogen.GroupChat(agents=[coder, reviewer, review_proxy], messages=[], max_round=12,
+    #                               speaker_selection_method="round_robin")
+    
+    #manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=llm_config)
 
     #review_proxy.initiate_chat(manager, message=prompt, clear_history=True)
+        
+    ## append the content property of all the groupchat.messages to the responses list
+    # for message in groupchat.messages:
+    #     print(message)
+    #     if "content" in message and message["content"] and (message["name"] == "reviewer" or message["name"] == "coder"):
+    #         responses.append(message["name"] + ": \n\n" + message["content"])
     
+
+    coder = autogen.AssistantAgent(
+        name="coder",        
+        system_message="You are a senior software engineer. You will review provided code and provide suggested edits based on the provided action. Provide your response in markdown format and include code snippets in code blocks." ,
+        llm_config=llm_config,
+    )
     review_proxy.send(recipient=coder, message= "REQUEST: " + action + "\n\n" + "CODE: \n\n"  + file_content, request_reply=True)
     
-    responses = []
     message = coder.last_message(review_proxy)
     review_output_text = message["content"]
-    responses.append("coder: \n\n" + review_output_text)
-    # append the content property of all the groupchat.messages to the responses list
-  
-    for message in groupchat.messages:
-        print(message)
-        if "content" in message and message["content"] and (message["name"] == "reviewer" or message["name"] == "coder"):
-            responses.append(message["name"] + ": \n\n" + message["content"])
-    
+    responses.append(review_output_text)
+
     planner = autogen.AssistantAgent(
         name="planner",
         system_message="You are an expert technical writer and project planner. You specialize in writting a summary of code and code reviews. " + 
             " Only respond with a detailed list of changes that should be made to the code." +
-            " These include a list of steps that need to be taken to complete the code changes and code samples." +
-            " Include `TERMINATE` at the end of the list. ",
+            " These include a list of steps that need to be taken to complete the code changes and code samples.",
         llm_config=llm_config,
     )
     review_proxy.send(recipient=planner, request_reply=True,
@@ -188,7 +188,7 @@ def review_file(file, action, cache_seed):
     message = planner.last_message()
     #print(message)
     review_output_text = message["content"]
-    responses.append("planner: \n\n" + review_output_text)
+    responses.append("PLAN: \n\n" + review_output_text)
     write_to_markdown(responses, file + ".md")
 
     return review_output_text
