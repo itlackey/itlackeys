@@ -8,37 +8,6 @@ from dotenv import load_dotenv
 import argparse
 import autogen
 
-__code_exec_dir__ = ".cache/user_proxy"
-__review_output_dir__ = ".cache/reviews"
-
-# config_list_gpt35 = autogen.config_list_from_json(
-#     env_or_file="oai.json",
-#     filter_dict={
-#         "model": {
-#             "deepseek",
-#             "gpt-3.5-turbo",
-#             "gpt-3.5-turbo-16k",
-#             "gpt-3.5-turbo-0301",
-#             "chatgpt-35-turbo-0301",
-#             "gpt-35-turbo-v0301",
-#         },
-#     },
-# )
-
-# config_list_local = autogen.config_list_from_json(
-#     env_or_file="local.json",
-#     filter_dict={
-#         "model": {
-#             "local"
-#         },
-#     },
-# )
-
-
-
-
-# @user_proxy.register_for_execution()
-# @reviewer.register_for_llm(name="write_to_markdown", description="Write messages to a markdown file.")
 def write_to_markdown(messages: Annotated[List[str], "List of messages to write."], file_name: Annotated[str, "Name of the file to write the messages to."]) -> str:
 
     file_dir = os.path.dirname(file_name)
@@ -59,7 +28,7 @@ def read_action_from_file(file_path):
         return None
 
 
-def perform_action(file, action, plan): # env_or_file="oai.json", update_files=False, cache_seed=None):
+def perform_action(file, action, plan): 
     """
     Executes the specified action on the given files using the OpenAI API.
 
@@ -75,12 +44,12 @@ def perform_action(file, action, plan): # env_or_file="oai.json", update_files=F
     client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"], 
                             base_url=os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1"))
     
-    model_name = os.environ.get("AIDER_DEFAULT_MODEL", "gpt-3.5-turbo") 
+    model_name = os.environ.get("AIDER_MODEL", "gpt-3.5-turbo") 
     
     model =  models.Model.create(model_name, client)
     coder = Coder.create(client=client, main_model=model, fnames=[file])
 
-    print("Apply these changes:\n\n" + plan)
+    # print("Apply these changes:\n\n" + plan)
     response = coder.run("Review this conversation and apply the recommended changes to the code.\n\n" + action + "\n\n" + plan)                    
 
     return response
@@ -91,61 +60,11 @@ def review_file(file, action, env_or_file, cache_seed):
     Use Autogen to review file based on the action prompt. Then output the output of the autogen review.
     """
 
-
-
     # read file content from file
     file_content = open(file, 'r').read()
-    
-    # prompt = "Review the specified ACTION:  Examine the existing code between BEGIN CODE BLOCK: and END CODE BLOCK."
-    # prompt += " Reply with ONLY a list of changes that should be made and the suggested code. "
-    # prompt += "\n\nFILENAME: " + file + "\n\nACTION: " + action + "\n\nBEGIN CODE BLOCK:\n\n" + file_content + "\n\nEND CODE BLOCK"
-
-
-    #prompt =  "REQUEST: " + action + "\n\n" + "CODE: \n\n"  + file_content
-    #print(prompt)
-
-
 
     responses = []
 
-
-    # user_proxy = autogen.UserProxyAgent(
-    #     name="user_proxy",
-    #     system_message="A human admin. If the code is executing successfully, please reply `TERMINATE`.",
-    #     code_execution_config={"last_n_messages": 2, "work_dir": __code_exec_dir__},
-    #     human_input_mode="NEVER"
-    # )
-    # reviewer = autogen.AssistantAgent(
-    #     name="reviewer",    
-    #     system_message="You are a code reviewer. When the coder is done, review their suggestions and the existing code." +
-    #     " Ensure that the changes are of high quality and follow best practices. " +
-    #     " Do not allow the renaming of files in the suggested changes. " +     
-    #     " Reply `TERMINATE` in the end when everything is done." +
-    #     " If the code is executing successfully and the changes are acceptable, please reply `TERMINATE`.",
-    #     llm_config=llm_config,
-    # )
-
-    # groupchat = autogen.GroupChat(agents=[coder, reviewer, review_proxy], messages=[], max_round=12,
-    #                               speaker_selection_method="round_robin")
-    
-    #manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=llm_config)
-
-    #review_proxy.initiate_chat(manager, message=prompt, clear_history=True)
-        
-    ## append the content property of all the groupchat.messages to the responses list
-    # for message in groupchat.messages:
-    #     print(message)
-    #     if "content" in message and message["content"] and (message["name"] == "reviewer" or message["name"] == "coder"):
-    #         responses.append(message["name"] + ": \n\n" + message["content"])
-    
-    # model_name = "local"
-    
-    # config_list_local =  autogen.config_list_from_json(env_or_file=env_or_file, filter_dict={"model": {model_name}})
-    # llm_config = {"config_list": config_list_local, "cache_seed": cache_seed}
-
-
-
-    
     if cache_seed is None or cache_seed.lower() == "false":
         cache_seed = None
 
@@ -165,17 +84,13 @@ def review_file(file, action, env_or_file, cache_seed):
         code_execution_config=False,
         human_input_mode="TERMINATE"
     )
-    
+
     coder = autogen.AssistantAgent(
-        name="coder",        
+        name="coder",
         system_message="You are a senior software engineer. You will review provided code and provide suggested edits based on the provided action. Provide your response in markdown format and include code snippets in code blocks." ,
         llm_config=llm_config,
     )
-    review_proxy.send(recipient=coder, message= "REQUEST: " + action + "\n\n" + "CODE: \n\n"  + file_content, request_reply=True)
-    
-    message = coder.last_message(review_proxy)
-    review_output_text = message["content"]
-    responses.append(review_output_text)
+
 
     planner = autogen.AssistantAgent(
         name="planner",
@@ -184,11 +99,20 @@ def review_file(file, action, env_or_file, cache_seed):
             " These include a list of steps that need to be taken to complete the code changes and code samples.",
         llm_config=llm_config,
     )
-    review_proxy.send(recipient=planner, request_reply=True,
+
+    is_silent = True
+
+    review_proxy.send(recipient=coder, request_reply=True, silent=is_silent,
+                      message= "REQUEST: " + action + "\n\n" + "CODE: \n\n"  + file_content)
+    
+    message = coder.last_message(review_proxy)
+    review_output_text = message["content"]
+    responses.append(review_output_text)
+
+    review_proxy.send(recipient=planner, request_reply=True, silent=is_silent,
         message="Read this review and reply with a list of steps that need to be taken to complete the code changes. \n\n" + str.join("\n\n", responses))
 
     message = planner.last_message()
-    #print(message)
     review_output_text = message["content"]
     responses.append("PLAN: \n\n" + review_output_text)
 
@@ -209,7 +133,7 @@ def main():
         action="store_true",
         help="Whether to update the files after running the action.",
     )
-    parser.add_argument("--env-or-file", type=str, default="local.json", help="The environment variable or JSON file to load configurations from.")
+    parser.add_argument("--oai", type=str, default="local.json", help="The environment variable or JSON file to load configurations from.")
     
     parser.add_argument(
         "--cache-seed",
@@ -219,7 +143,7 @@ def main():
 
     args = parser.parse_args()
 
-    env_or_file = args.env_or_file
+    env_or_file = args.oai
 
     if os.path.isfile(args.action):
         action = read_action_from_file(args.action)
