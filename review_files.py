@@ -80,7 +80,7 @@ def read_action_from_file(file_path):
         return None
 
 
-def perform_action(file, action, update_files=False, cache_seed=None):
+def perform_action(file, action, env_or_file="oai.json", update_files=False, cache_seed=None):
     """
     Executes the specified action on the given files using the OpenAI API.
 
@@ -112,7 +112,7 @@ def perform_action(file, action, update_files=False, cache_seed=None):
     return response
 
 
-def review_file(file, action, cache_seed):
+def review_file(file, action, env_or_file, cache_seed):
     """
     Use Autogen to review file based on the action prompt. Then output the output of the autogen review.
     """
@@ -167,7 +167,7 @@ def review_file(file, action, cache_seed):
     coder = autogen.AssistantAgent(
         name="coder",        
         system_message="You are a senior software engineer. You will review provided code and provide suggested edits based on the provided action. Provide your response in markdown format and include code snippets in code blocks." ,
-        llm_config=llm_config,
+        llm_config={"config_list": autogen.config_list_from_json(env_or_file=env_or_file, filter_dict={"model": {"local"}}), "cache_seed": cache_seed},
     )
     review_proxy.send(recipient=coder, message= "REQUEST: " + action + "\n\n" + "CODE: \n\n"  + file_content, request_reply=True)
     
@@ -196,6 +196,7 @@ def review_file(file, action, cache_seed):
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(description="Script to perform an action on files.")
+    parser.add_argument("--env-or-file", type=str, default="oai.json", help="The environment variable or JSON file to load configurations from.")
     parser.add_argument("files", nargs='*', help="The glob pattern for file matching or list of files.")
     parser.add_argument("--action", type=str, help="The action to be performed on the files.")
     parser.add_argument(
@@ -213,6 +214,8 @@ def main():
     )
 
     args = parser.parse_args()
+
+    env_or_file = args.env_or_file
 
     if os.path.isfile(args.action):
         action = read_action_from_file(args.action)
@@ -233,7 +236,7 @@ def main():
         print(f'Files: {files}')
         for file in files:
             print(f'File: {file}')    
-            response = perform_action(file, action, update_files=args.update_files, cache_seed=args.cache_seed)
+            response = perform_action(file, action, env_or_file=env_or_file, update_files=args.update_files, cache_seed=args.cache_seed)
             print(f'Response: {response}')
 
 if __name__ == "__main__":
