@@ -74,7 +74,7 @@ def perform_action(file, action, update_files=False, cache_seed=None):
     Returns:
         str: The response from the coder after running the action.
     """
-    review_output = review_file(file, action, skip_cache=skip_cache)
+    review_output = review_file(file, action, cache_seed)
     
 
     if update_files:        
@@ -94,18 +94,16 @@ def perform_action(file, action, update_files=False, cache_seed=None):
     return response
 
 
-def review_file(file, action, skip_cache=False):
+def review_file(file, action, cache_seed):
     """
     Use Autogen to review file based on the action prompt. Then output the output of the autogen review.
     """
 
-    response_cache = os.environ.get("ITL_CACHE_SEED", None)
-    if cache_seed is False:
-        response_cache = None
-    elif cache_seed is not None:
-        response_cache = cache_seed
+    
+    if cache_seed is None or cache_seed.lower() == "false":
+        cache_seed = None
 
-    llm_config = {"config_list": config_list_local, "cache_seed": response_cache}
+    llm_config = {"config_list": config_list_local, "cache_seed": cache_seed}
 
     coder = autogen.AssistantAgent(
         name="coder",
@@ -175,7 +173,7 @@ def main():
         "--cache-seed",
         nargs='?',
         const=False,
-        default=os.environ.get("ITL_CACHE_SEED", None),
+        default=os.environ.get("ITL_CACHE_SEED", "42"),
         help="Cache seed for the action, or False to disable caching.",
     )
 
