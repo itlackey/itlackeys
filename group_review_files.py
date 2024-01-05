@@ -9,32 +9,6 @@ import argparse
 import autogen
 
 __code_exec_dir__ = ".cache/user_proxy"
-__review_output_dir__ = ".cache/reviews"
-
-# config_list_gpt35 = autogen.config_list_from_json(
-#     env_or_file="oai.json",
-#     filter_dict={
-#         "model": {
-#             "deepseek",
-#             "gpt-3.5-turbo",
-#             "gpt-3.5-turbo-16k",
-#             "gpt-3.5-turbo-0301",
-#             "chatgpt-35-turbo-0301",
-#             "gpt-35-turbo-v0301",
-#         },
-#     },
-# )
-
-# config_list_local = autogen.config_list_from_json(
-#     env_or_file="local.json",
-#     filter_dict={
-#         "model": {
-#             "local"
-#         },
-#     },
-# )
-
-
 
 
 # @user_proxy.register_for_execution()
@@ -108,44 +82,6 @@ def review_file(file, action, env_or_file, cache_seed):
 
     responses = []
 
-
-    # user_proxy = autogen.UserProxyAgent(
-    #     name="user_proxy",
-    #     system_message="A human admin. If the code is executing successfully, please reply `TERMINATE`.",
-    #     code_execution_config={"last_n_messages": 2, "work_dir": __code_exec_dir__},
-    #     human_input_mode="NEVER"
-    # )
-    # reviewer = autogen.AssistantAgent(
-    #     name="reviewer",    
-    #     system_message="You are a code reviewer. When the coder is done, review their suggestions and the existing code." +
-    #     " Ensure that the changes are of high quality and follow best practices. " +
-    #     " Do not allow the renaming of files in the suggested changes. " +     
-    #     " Reply `TERMINATE` in the end when everything is done." +
-    #     " If the code is executing successfully and the changes are acceptable, please reply `TERMINATE`.",
-    #     llm_config=llm_config,
-    # )
-
-    # groupchat = autogen.GroupChat(agents=[coder, reviewer, review_proxy], messages=[], max_round=12,
-    #                               speaker_selection_method="round_robin")
-    
-    #manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=llm_config)
-
-    #review_proxy.initiate_chat(manager, message=prompt, clear_history=True)
-        
-    ## append the content property of all the groupchat.messages to the responses list
-    # for message in groupchat.messages:
-    #     print(message)
-    #     if "content" in message and message["content"] and (message["name"] == "reviewer" or message["name"] == "coder"):
-    #         responses.append(message["name"] + ": \n\n" + message["content"])
-    
-    # model_name = "local"
-    
-    # config_list_local =  autogen.config_list_from_json(env_or_file=env_or_file, filter_dict={"model": {model_name}})
-    # llm_config = {"config_list": config_list_local, "cache_seed": cache_seed}
-
-
-
-    
     if cache_seed is None or cache_seed.lower() == "false":
         cache_seed = None
 
@@ -155,6 +91,42 @@ def review_file(file, action, env_or_file, cache_seed):
     )
 
     llm_config = {"config_list": config_list_local, "cache_seed": cache_seed}
+
+    coder = autogen.AssistantAgent(
+        name="coder",        
+        system_message="You are a senior software engineer. You will review provided code and provide suggested edits based on the provided action. Provide your response in markdown format and include code snippets in code blocks." ,
+        llm_config=llm_config,
+    )
+
+    user_proxy = autogen.UserProxyAgent(
+        name="user_proxy",
+        system_message="A human admin. If the code is executing successfully, please reply `TERMINATE`.",
+        code_execution_config={"last_n_messages": 2, "work_dir": __code_exec_dir__},
+        human_input_mode="NEVER"
+    )
+    reviewer = autogen.AssistantAgent(
+        name="reviewer",    
+        system_message="You are a code reviewer. When the coder is done, review their suggestions and the existing code." +
+        " Ensure that the changes are of high quality and follow best practices. " +
+        " Do not allow the renaming of files in the suggested changes. " +     
+        " Reply `TERMINATE` in the end when everything is done." +
+        " If the code is executing successfully and the changes are acceptable, please reply `TERMINATE`.",
+        llm_config=llm_config,
+    )
+
+    groupchat = autogen.GroupChat(agents=[coder, reviewer, user_proxy], messages=[], max_round=12,
+                                  speaker_selection_method="round_robin")
+    
+    manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=llm_config)
+
+    user_proxy.initiate_chat(manager, message="REQUEST: " + action + "\n\n" + "CODE: \n\n"  + file_content, clear_history=True)
+        
+    # append the content property of all the groupchat.messages to the responses list
+    for message in groupchat.messages:
+        print(message)
+        if "content" in message and message["content"] and (message["name"] == "reviewer" or message["name"] == "coder"):
+            responses.append(message["name"] + ": \n\n" + message["content"])
+
 
     review_proxy = autogen.UserProxyAgent(
         name="review_user_proxy",
@@ -166,11 +138,7 @@ def review_file(file, action, env_or_file, cache_seed):
         human_input_mode="TERMINATE"
     )
     
-    coder = autogen.AssistantAgent(
-        name="coder",        
-        system_message="You are a senior software engineer. You will review provided code and provide suggested edits based on the provided action. Provide your response in markdown format and include code snippets in code blocks." ,
-        llm_config=llm_config,
-    )
+
     review_proxy.send(recipient=coder, message= "REQUEST: " + action + "\n\n" + "CODE: \n\n"  + file_content, request_reply=True)
     
     message = coder.last_message(review_proxy)
