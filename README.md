@@ -1,10 +1,10 @@
-## Repository README
+## ITLackey's Scripts
 
-This repository contains a set of tools for reviewing and modifying code files using OpenAI's GPT models.
+This repository contains a set of tools for various things, such as reviewing and modifying code files using autogen and aider.
 
 ### Configuration
 
-The behavior of the scripts can be configured using the `.env.example` file and the `local.json` file.
+The behavior of the scripts can be configured using the `.env` file and the `local.json` file.
 
 #### .env.example
 
@@ -53,4 +53,4 @@ Contributions to this repository are welcome. Please ensure that you follow the 
 
 ### License
 
-This repository is licensed under the MIT License. See the LICENSE file for more information.
+This repository is licensed under the MIT License.
