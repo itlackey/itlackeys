@@ -6,6 +6,8 @@
         "**/CVS": true,
         "**/.DS_Store": true,
         "**/Thumbs.db": true,
-        "**/.cache": false
+        "**/.cache": false,
+        "**/venv": true,
+        "**/.aider*": true
     }
 }

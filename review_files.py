@@ -36,7 +36,7 @@ config_list_local = autogen.config_list_from_json(
 user_proxy = autogen.UserProxyAgent(
     name="user_proxy",
     system_message="A human admin. If the code is executing successfully, please reply `TERMINATE`.",
-    code_execution_config={"last_n_messages": 2, "work_dir": ".groupchat"},
+    code_execution_config={"last_n_messages": 2, "work_dir": ".cache/user_proxy"},
     human_input_mode="NEVER"
 )
 review_proxy = autogen.UserProxyAgent(
@@ -51,15 +51,31 @@ review_proxy = autogen.UserProxyAgent(
 # @user_proxy.register_for_execution()
 # @reviewer.register_for_llm(name="write_to_markdown", description="Write messages to a markdown file.")
 def write_to_markdown(messages: Annotated[List[str], "List of messages to write."], file_name: Annotated[str, "Name of the file to write the messages to."]) -> str:
+    
+    
+    if not os.path.exists(".cache/user_proxy"):
+        os.makedirs(".cache/user_proxy")
+
+    file_name = os.path.join(".cache/user_proxy", file_name)
+    
+    file_dir = os.path.dirname(file_name)
+    if not os.path.exists(file_dir):
+        os.makedirs(file_dir)
+
     with open(file_name, 'w') as file:
         for message in messages:
             file.write(f'{message}\n\n')
     return f"Messages written to {file_name}."
 
 def read_action_from_file(file_path):
-    with open(file_path, 'r') as file:
-        action = file.read().strip()
-    return action
+    file_path = os.path.join(".cache/user_proxy", file_path)
+
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as file:
+            action = file.read().strip()
+        return action
+    else:
+        return None
 
 
 def perform_action(file, action, update_files=False, cache_seed=None):
