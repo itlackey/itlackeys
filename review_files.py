@@ -62,7 +62,7 @@ def read_action_from_file(file_path):
     return action
 
 
-def perform_action(file, action, update_files=False, skip_cache=False):
+def perform_action(file, action, update_files=False, cache_seed=None):
     """
     Executes the specified action on the given files using the OpenAI API.
 
@@ -99,9 +99,11 @@ def review_file(file, action, skip_cache=False):
     Use Autogen to review file based on the action prompt. Then output the output of the autogen review.
     """
 
-    response_cache = 43
-    if skip_cache:
+    response_cache = os.environ.get("ITL_CACHE_SEED", None)
+    if cache_seed is False:
         response_cache = None
+    elif cache_seed is not None:
+        response_cache = cache_seed
 
     llm_config = {"config_list": config_list_local, "cache_seed": response_cache}
 
@@ -170,9 +172,11 @@ def main():
     )
 
     parser.add_argument(
-        "--skip-cache",
-        action="store_true",
-        help="Whether to update the files after running the action.",
+        "--cache-seed",
+        nargs='?',
+        const=False,
+        default=os.environ.get("ITL_CACHE_SEED", None),
+        help="Cache seed for the action, or False to disable caching.",
     )
 
     args = parser.parse_args()
@@ -196,7 +200,7 @@ def main():
         print(f'Files: {files}')
         for file in files:
             print(f'File: {file}')    
-            response = perform_action(file, action, update_files=args.update_files, skip_cache=args.skip_cache)
+            response = perform_action(file, action, update_files=args.update_files, cache_seed=args.cache_seed)
             print(f'Response: {response}')
 
 if __name__ == "__main__":
