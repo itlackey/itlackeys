@@ -41,8 +41,10 @@ user_proxy = autogen.UserProxyAgent(
 )
 review_proxy = autogen.UserProxyAgent(
     name="review_user_proxy",
+    default_auto_reply="TERMINATE",
     system_message="A coordinator that works with the planner to create a set of instructions. "+
-        " If the instructions are acceptable or there is nothing to do, please reply `TERMINATE`.",
+        " If the instructions are acceptable or there is nothing to do, please reply `TERMINATE`." + 
+        " If you have no response, please reply `TERMINATE`.", 
     code_execution_config=False,
     human_input_mode="TERMINATE"
 )
@@ -122,8 +124,9 @@ def review_file(file, action, cache_seed):
     llm_config = {"config_list": config_list_local, "cache_seed": cache_seed}
 
     coder = autogen.AssistantAgent(
-        name="coder",
-        system_message="You are a senior software engineer. Review the provide code and requirements. Provide a list of changes that should be made and the suggested code. Reply `TERMINATE` in the end when everything is done.",
+        name="coder",        
+        system_message="You are a senior software engineer. You will review provided code and provide suggested edits based on the provided action. " +           
+            " Reply `TERMINATE` in the end when everything is done.",
         llm_config=llm_config,
     )
     reviewer = autogen.AssistantAgent(
@@ -136,20 +139,36 @@ def review_file(file, action, cache_seed):
         llm_config=llm_config,
     )
 
-    groupchat = autogen.GroupChat(agents=[user_proxy, coder, reviewer], messages=[], max_round=12,
+
+    # read file content from file
+    file_content = open(file, 'r').read()
+    
+    #print(file_content)
+    prompt = "Review the specified ACTION:  Examine the existing code between BEGIN CODE BLOCK: and END CODE BLOCK."
+    prompt += " Reply with ONLY a list of changes that should be made and the suggested code. "
+    prompt += "\n\nFILENAME: " + file + "\n\nACTION: " + action + "\n\nBEGIN CODE BLOCK:\n\n" + file_content + "\n\nEND CODE BLOCK"
+
+
+    prompt =  "REQUEST: " + action + "\n\n" + "CODE: \n\n"  + file_content
+    #print(prompt)
+
+
+    groupchat = autogen.GroupChat(agents=[coder, reviewer, review_proxy], messages=[], max_round=12,
                                   speaker_selection_method="round_robin")
     
 
     manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=llm_config)
 
-    # read file content from file
-    file_content = open(file, 'r').read()
+    #review_proxy.initiate_chat(manager, message=prompt, clear_history=True)
     
-    user_proxy.initiate_chat(manager, message=action + "\n\nFile: " + file_content, clear_history=True, file_name=file + ".md")
-    #responses.append(groupchat.messages)
+    review_proxy.send(recipient=coder, message= "REQUEST: " + action + "\n\n" + "CODE: \n\n"  + file_content, request_reply=True)
     
-    # append the content property of all the groupchat.messages to the responses list
     responses = []
+    message = coder.last_message(review_proxy)
+    review_output_text = message["content"]
+    responses.append("coder: \n\n" + review_output_text)
+    # append the content property of all the groupchat.messages to the responses list
+  
     for message in groupchat.messages:
         print(message)
         if "content" in message and message["content"] and (message["name"] == "reviewer" or message["name"] == "coder"):
