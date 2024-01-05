@@ -1,0 +1,6 @@
+[
+{
+    "api_key": "llm-studio",
+    "model": "local",
+    "base_url": "http://localhost:8000/v1"
+}]

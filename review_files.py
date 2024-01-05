@@ -26,7 +26,7 @@ config_list_gpt35 = autogen.config_list_from_json(
 )
 
 config_list_local = autogen.config_list_from_json(
-    env_or_file="oai.json",
+    env_or_file="local.json",
     filter_dict={
         "model": {
             "local"
@@ -55,8 +55,7 @@ review_proxy = autogen.UserProxyAgent(
 # @user_proxy.register_for_execution()
 # @reviewer.register_for_llm(name="write_to_markdown", description="Write messages to a markdown file.")
 def write_to_markdown(messages: Annotated[List[str], "List of messages to write."], file_name: Annotated[str, "Name of the file to write the messages to."]) -> str:
-    
-    
+        
     if not os.path.exists(__review_output_dir__):
         os.makedirs(__review_output_dir__)
 
@@ -80,7 +79,7 @@ def read_action_from_file(file_path):
         return None
 
 
-def perform_action(file, action, env_or_file="oai.json", update_files=False, cache_seed=None):
+def perform_action(file, action, plan): # env_or_file="oai.json", update_files=False, cache_seed=None):
     """
     Executes the specified action on the given files using the OpenAI API.
 
@@ -92,22 +91,22 @@ def perform_action(file, action, env_or_file="oai.json", update_files=False, cac
     Returns:
         str: The response from the coder after running the action.
     """
-    review_output = review_file(file, action, cache_seed)
+    #review_output = review_file(file, action, env_or_file, cache_seed)
     
 
-    if update_files:        
-        client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"], 
-                               base_url=os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1"))
-        
-        model_name = os.environ.get("AIDER_DEFAULT_MODEL", "gpt-3.5-turbo") 
-        
-        model =  models.Model.create(model_name, client)
-        coder = Coder.create(client=client, main_model=model, fnames=[file])
+    #if update_files:        
+    client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"], 
+                            base_url=os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1"))
+    
+    model_name = os.environ.get("AIDER_DEFAULT_MODEL", "gpt-3.5-turbo") 
+    
+    model =  models.Model.create(model_name, client)
+    coder = Coder.create(client=client, main_model=model, fnames=[file])
 
-        print("Apply these changes:\n\n" + review_output)
-        response = coder.run("Review this conversation and apply the recommended changes to the code.\n\n" + review_output)               
-    else:
-        response = review_output        
+    print("Apply these changes:\n\n" + plan)
+    response = coder.run("Review this conversation and apply the recommended changes to the code.\n\n" + action + "\n\n" + plan)               
+    # else:
+    #     response = review_output        
 
     return response
 
@@ -120,6 +119,11 @@ def review_file(file, action, env_or_file, cache_seed):
     
     if cache_seed is None or cache_seed.lower() == "false":
         cache_seed = None
+
+
+    config_list_local = autogen.config_list_from_json(
+        env_or_file=env_or_file
+    )
 
     llm_config = {"config_list": config_list_local, "cache_seed": cache_seed}
 
@@ -196,19 +200,17 @@ def review_file(file, action, env_or_file, cache_seed):
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(description="Script to perform an action on files.")
-    parser.add_argument("--env-or-file", type=str, default="oai.json", help="The environment variable or JSON file to load configurations from.")
     parser.add_argument("files", nargs='*', help="The glob pattern for file matching or list of files.")
-    parser.add_argument("--action", type=str, help="The action to be performed on the files.")
+    parser.add_argument("action", type=str, help="The action to be performed on the files.")
     parser.add_argument(
         "--update-files",
         action="store_true",
         help="Whether to update the files after running the action.",
     )
-
+    parser.add_argument("--env-or-file", type=str, default="local.json", help="The environment variable or JSON file to load configurations from.")
+    
     parser.add_argument(
         "--cache-seed",
-        nargs='?',
-        const=False,
         default=os.environ.get("ITL_CACHE_SEED", "42"),
         help="Cache seed for the action, or False to disable caching.",
     )
@@ -235,9 +237,12 @@ def main():
     else:
         print(f'Files: {files}')
         for file in files:
-            print(f'File: {file}')    
-            response = perform_action(file, action, env_or_file=env_or_file, update_files=args.update_files, cache_seed=args.cache_seed)
-            print(f'Response: {response}')
+            print(f'Reviewing File: {file}')
+            plan = review_file(file, action, env_or_file=env_or_file, cache_seed=args.cache_seed)
+            if args.update_files and plan is not None:
+                print(f'Updating file: {file}')
+                response = perform_action(file, action, plan)
+                print(f'Response: {response}')
 
 if __name__ == "__main__":
     main()
