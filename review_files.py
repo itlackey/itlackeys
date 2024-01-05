@@ -88,7 +88,8 @@ def perform_action(file, action, update_files=False, skip_cache=False):
 
         print("Apply these changes:\n\n" + review_output)
         response = coder.run("Review this conversation and apply the recommended changes to the code.\n\n" + review_output)               
-        
+    else:
+        response = review_output        
 
     return response
 
@@ -100,7 +101,7 @@ def review_file(file, action, skip_cache=False):
 
     response_cache = 43
     if skip_cache:
-        response_cache = False
+        response_cache = None
 
     llm_config = {"config_list": config_list_local, "cache_seed": response_cache}
 
@@ -123,8 +124,7 @@ def review_file(file, action, skip_cache=False):
                                   speaker_selection_method="round_robin")
     
 
-    _config = {"config_list": config_list_local, "cache_seed": response_cache}
-    manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=_config)
+    manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=llm_config)
 
     # read file content from file
     file_content = open(file, 'r').read()
@@ -145,7 +145,7 @@ def review_file(file, action, skip_cache=False):
             " Only respond with a detailed list of changes that should be made to the code." +
             " These include a list of steps that need to be taken to complete the code changes and code samples." +
             " Include `TERMINATE` at the end of the list. ",
-        llm_config=_config,
+        llm_config=llm_config,
     )
     review_proxy.send(recipient=planner, request_reply=True,
         message="Read this review and reply with a list of steps that need to be taken to complete the code changes. \n\n" + str.join("\n\n", responses))
