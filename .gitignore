@@ -3,4 +3,4 @@ example-app/
 venv
 .env
 oai.json
-.cache/42/cache.db
+.cache
