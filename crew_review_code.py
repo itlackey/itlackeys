@@ -183,7 +183,7 @@ def review_file(file, action, cache_seed):
         accomplish the goal of """ + action + """ and any urgent changes from the code review.
         The actions cannot include creating new files. 
                 
-        To use a tool (as described in the instruction above), please use the exact following format:        
+        To use a tool (as described in the instructions above), please use the exact following format:        
             ```
             Thought: Do I need to use a tool? Yes
             Action: [Delegate work to co-worker, Ask question to co-worker]
@@ -199,7 +199,7 @@ def review_file(file, action, cache_seed):
             Observation:
         ```
         You may continue to use tools as needed by using the above format. 
-        Be sure that the Action Input is formatted correctly with all three values sepearated by pipes. The 
+        Be sure that the Action Input is formatted correctly with all three values separated by pipes. The 
         three values need to be the name of the co-worker, a single term (either question or task), and the information about the task or question.
         Example: "Senior Software Engineer|question|Check the code for best practices"
         
