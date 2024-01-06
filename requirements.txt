@@ -1,5 +1,7 @@
-aider-chat
-openai
-#configargparse==1.7
+git+https://github.com/paul-gauthier/aider.git
+#aider-chat==0.20.0 #had to use GH link due to pip version issue with openai dependency
+crewai==0.1.16
+duckduckgo-search
+openai>=1.5.0
 python-dotenv==0.19.2
 pyautogen

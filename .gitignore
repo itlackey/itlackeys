@@ -1,6 +1,7 @@
 example-app/
 .aider*
 venv
+.venv/
 .env
 oai.json
 .cache
