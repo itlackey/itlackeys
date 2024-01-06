@@ -11,7 +11,9 @@ from crewai import Agent, Task, Crew, Process
 from langchain.chat_models.openai import ChatOpenAI
 
 def main():
+    os.environ.clear()
     load_dotenv()
+    print(os.environ.items())
     parser = argparse.ArgumentParser(description="Script to perform an action on files.")
     parser.add_argument("files", nargs='*', help="The glob pattern for file matching or list of files.")
     parser.add_argument("action", type=str, help="The action to be performed on the files.")
@@ -87,7 +89,7 @@ def perform_action(file, action, plan):
         str: The response from the coder after running the action.
     """
       
-    client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"], 
+    client = openai.OpenAI(api_key=os.environ.get("AIDER_OPENAI_API_KEY", os.environ["OPENAI_API_KEY"]), 
                             base_url=
                             os.environ.get("AIDER_OPENAI_API_BASE_URL", os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1")))
     
@@ -98,7 +100,7 @@ def perform_action(file, action, plan):
 
     # print("Apply these changes:\n\n" + plan)
     #response = coder.run("Review this conversation and apply the recommended changes to the code.\n\n" + action + "\n\n" + plan)                    
-    response = coder.run(plan)                    
+    response = coder.run(f"Please update the code base on these list of action items:\n\n{plan}")                    
 
     return response
 
@@ -108,6 +110,7 @@ def review_file(file, action, cache_seed):
 
     defalut_llm = ChatOpenAI(openai_api_base=os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1"),
                         temperature=0.9,
+                        top_p=0.3,
                         model_name="gpt-3.5-turbo")
     # Define your agents with roles and goals
     researcher = Agent(
@@ -175,12 +178,11 @@ def review_file(file, action, cache_seed):
 
     analyze = Task(
         description="""Using the insights from the other team members analysis,
-        create e a list of changes needed to achieve the goal of """ + action + """ 
+        create a list of changes needed to achieve the goal of """ + action + """ 
         Your final answer MUST be a list of between 1 and 10 action items that 
         accomplish the goal of """ + action + """ and any urgent changes from the code review.
         The actions cannot include creating new files. 
-        
-        
+                
         To use a tool (as described in the instruction above), please use the exact following format:        
             ```
             Thought: Do I need to use a tool? Yes
@@ -197,30 +199,42 @@ def review_file(file, action, cache_seed):
             Observation:
         ```
         You may continue to use tools as needed by using the above format. 
+        Be sure that the Action Input is formatted correctly with all three values sepearated by pipes. The 
+        three values need to be the name of the co-worker, a single term (either question or task), and the information about the task or question.
+        Example: "Senior Software Engineer|question|Check the code for best practices"
+        
+        It is VITAL TO YOUR JOB to use this format when using tools. Not include all three values in your Action Input
+        will cause your job to FAIL!!
+
         DO NOT include "Final Answer" in your response until you are done using tools.
 
         However, once you are done with your task and no longer need to use a tool,
         it is important to follow these instructions.
             
-        When you have no more research to do, your review is complete,
-          and the list of action items are ready,
-         respond with your actions items in this exact format:
+        When you have no more research to do, your review is complete, and the list of action items are ready,
+        respond with your actions items in this exact format:
                 
         ```        
         Final Answer: 
         
-        
-        Here are the action items we recommend for you:
+        Action items:
+        1. item 1
+        2. item 2
+        ...
+        10. item 10
 
-
-            [the list of action items]
         ```
-                    
-        It is VERY important that you respond in the formats described above!
-
-        You can also use `code blocks` format when responding, if needed, but the
-        answer MUST 100% match the format given above, and should include the exact code with your actions
         
+        You can also use `code blocks` format when responding, if needed, but the
+        answer MUST 100% match the format given above, and should include the exact code for 
+         the related action item.
+
+        It is VERY important that you respond in the formats described above
+        and that the items are specific to the code provided! DO NOT include any
+        general action items such as: ensure the code is tested, improve readability, etc.
+
+        Items that are not specific to this code or are not directly actionable should be removed from the final list of action items.
+    
         Here is the code to review: \n\n""" + code,
         agent=reviewer
     )
