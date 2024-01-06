@@ -88,7 +88,8 @@ def perform_action(file, action, plan):
     """
       
     client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"], 
-                            base_url=os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1"))
+                            base_url=
+                            os.environ.get("AIDER_OPENAI_API_BASE_URL", os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1")))
     
     model_name = os.environ.get("AIDER_MODEL", "gpt-3.5-turbo") 
     
@@ -105,9 +106,12 @@ def review_file(file, action, cache_seed):
 
     search_tool = DuckDuckGoSearchRun()
 
+    defalut_llm = ChatOpenAI(openai_api_base=os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1"),
+                        temperature=0.9,
+                        model_name="gpt-3.5-turbo")
     # Define your agents with roles and goals
     researcher = Agent(
-        role='Senior Research Analyst',
+        role='Researcher',
         goal='Use the web to find the latest documentation for language and frameworks',
         backstory="""You are a Senior Research Analyst at a leading software development company.
         Your expertise lies in assisting developers with language and framework research. 
@@ -115,8 +119,9 @@ def review_file(file, action, cache_seed):
         verbose=True,
         allow_delegation=False,
         tools=[search_tool],
-        llm=ChatOpenAI(temperature=0.7, model_name="gpt-3.5-turbo") # It uses langchain.chat_models, default is GPT4
+        llm=defalut_llm # It uses langchain.chat_models, default is GPT4
     )
+                
     coder = Agent(
         role='Senior Software Engineer',
         goal='Provide high quality code analysis with specific feedback, action items, and sample code when needed.',
@@ -126,10 +131,10 @@ def review_file(file, action, cache_seed):
         review complex code across multiple platforms, frameworks, and languages.""",
         verbose=True,
         allow_delegation=True,
-        llm=ChatOpenAI(temperature=0.7, model_name="gpt-3.5-turbo") 
+        llm=defalut_llm 
     )
     reviewer = Agent(
-        role='Code Review Specialist',
+        role='Code Reviewer',
         goal='Provide high quality code reviews with specific feedback and action items.',
         backstory="""You are a renowned Code Review Specialist, known for your insightful
         and and actionable code reviews. With a deep understanding of
@@ -137,7 +142,7 @@ def review_file(file, action, cache_seed):
         review complex code across multiple platforms, frameworks, and languages.""",
         verbose=True,
         allow_delegation=True,
-        llm=ChatOpenAI(temperature=0.7, model_name="gpt-3.5-turbo") 
+        llm=defalut_llm 
     )
 
     code = open(file, 'r').read()
@@ -174,8 +179,50 @@ def review_file(file, action, cache_seed):
         Your final answer MUST be a list of between 1 and 10 action items that 
         accomplish the goal of """ + action + """ and any urgent changes from the code review.
         The actions cannot include creating new files. 
-        Here is the code: \n\n""" + code,
-        agent=coder
+        
+        
+        To use a tool (as described in the instruction above), please use the exact following format:        
+            ```
+            Thought: Do I need to use a tool? Yes
+            Action: [Delegate work to co-worker, Ask question to co-worker]
+            Action Input: [coworker name]|['question' or 'task']|[information about the task or question]
+            Observation: [full response from the co-worker]
+            ```
+
+        For example to ask a the Software Engineer to check the code for best practices:
+        ``` 
+            Thought: Do I need to use a tool? Yes
+            Action: Ask question to co-worker
+            Action Input: Senior Software Engineer|question|Check the code for best practices
+            Observation:
+        ```
+        You may continue to use tools as needed by using the above format. 
+        DO NOT include "Final Answer" in your response until you are done using tools.
+
+        However, once you are done with your task and no longer need to use a tool,
+        it is important to follow these instructions.
+            
+        When you have no more research to do, your review is complete,
+          and the list of action items are ready,
+         respond with your actions items in this exact format:
+                
+        ```        
+        Final Answer: 
+        
+        
+        Here are the action items we recommend for you:
+
+
+            [the list of action items]
+        ```
+                    
+        It is VERY important that you respond in the formats described above!
+
+        You can also use `code blocks` format when responding, if needed, but the
+        answer MUST 100% match the format given above, and should include the exact code with your actions
+        
+        Here is the code to review: \n\n""" + code,
+        agent=reviewer
     )
     # Instantiate your crew with a sequential process
     crew = Crew(
