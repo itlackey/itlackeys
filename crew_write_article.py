@@ -2,27 +2,16 @@ import glob
 import os
 import argparse
 from dotenv import load_dotenv
-import langchain
 from langchain.tools import DuckDuckGoSearchRun
 from crewai import Agent, Task, Crew, Process
-from langchain.chat_models.openai import ChatOpenAI 
-# Define your tools, custom or not.
-# Install duckduckgo-search for this example:
-#
-# !pip install -U duckduckgo-search
+from langchain.chat_models.openai import ChatOpenAI
 
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(description="Script to perform an action on files.")
     parser.add_argument("files", nargs='*', help="The glob pattern for file matching or list of files.")
-    parser.add_argument("action", type=str, help="The action to be performed on the files.")
-    parser.add_argument(
-        "--update-files",
-        action="store_true",
-        help="Whether to update the files after running the action.",
-    )
-    parser.add_argument("--oai", type=str, default="local.json", help="The environment variable or JSON file to load configurations from.")
-    
+    parser.add_argument("topic", type=str, help="The action to be performed on the files.")
+ 
     parser.add_argument(
         "--cache-seed",
         default=os.environ.get("ITL_CACHE_SEED", "42"),
@@ -52,11 +41,8 @@ def main():
         print(f'Files: {files}')
         for file in files:
             print(f'Reviewing File: {file}')
-            plan = review_file(file, action, env_or_file=env_or_file, cache_seed=args.cache_seed)
-            if args.update_files and plan is not None:
-                print(f'Updating file: {file}')
-                response = perform_action(file, action, plan)
-                print(f'Response: {response}')
+            review_file(file, action, env_or_file=env_or_file, cache_seed=args.cache_seed)
+            
 
 def read_action_from_file(file):
     pass
@@ -118,8 +104,6 @@ def review_file(file, action, env_or_file, cache_seed):
     result = crew.kickoff()
     return result
 
-def perform_action(file, action, plan):
-    pass
 
 if __name__ == "__main__":
     main()
