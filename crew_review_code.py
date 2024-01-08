@@ -109,9 +109,9 @@ def review_file(file, action, cache_seed):
     search_tool = DuckDuckGoSearchRun()
 
     defalut_llm = ChatOpenAI(openai_api_base=os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1"),
-                        temperature=0.9,
+                        temperature=0,
                         top_p=0.3,
-                        model_name="gpt-3.5-turbo")
+                        model_name="deepseek-coder-6.7b-instruct") #"gpt-3.5-turbo")
     # Define your agents with roles and goals
     researcher = Agent(
         role='Researcher',
@@ -149,6 +149,9 @@ def review_file(file, action, cache_seed):
     )
 
     code = open(file, 'r').read()
+
+    # take just the first 1000 characters
+    code = code[:1000]
 
     # Create tasks for your agents
     overview = Task(
