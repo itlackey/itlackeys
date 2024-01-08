@@ -9,12 +9,14 @@ from crew.AiderCoderAgent import aider_coder_agent
 
 from langchain.chat_models.openai import ChatOpenAI
 
+os.environ.clear()
+
 load_dotenv()
 defalut_llm = ChatOpenAI(openai_api_base=os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1"),
                         openai_api_key=os.environ.get("OPENAI_API_KEY"),
                         temperature=0,
                         top_p=0.3,
-                        model_name="deepseek-coder-6.7b-instruct") #"gpt-3.5-turbo")
+                        model_name=os.environ.get("ITL_MAIN_MODEL_NAME", "gpt-3.5-turbo"))
 
 def write_to_markdown(message, file_name) -> str:
 
@@ -60,13 +62,20 @@ def syntax_review_tool(original_markdown: str) -> str:
     A tool to review strings for markdown syntax errors.
 
     Parameters:
-    - original_markdown: The markdown to be reviewed.
+    - original_markdown: The markdown to be reviewed. This should be a string of markdown passed into the tool
+    and should contain the entire string. DO NOT truncate or remove any of the context.
+
+    For example a message in this format:
+    Thought: Do I need to use a tool? Yes
+    Action: syntax_review_tool
+    Action Input: [insert the value of original_markdown value]
+    Observation:
 
     Returns:
-    - updated_markdown: The corrected markdown based on the syntax review.
+    - updated_markdown: The corrected markdown based on the syntax review. The correct markdown should not modify any of the context, only the syntax.
     """
     
-    print("Validating Markdown syntax..." + original_markdown)
+    print("\n\nValidating Markdown syntax...\n\n" + original_markdown)
 
     rendered_html = markdown.markdown(original_markdown)
 
@@ -100,16 +109,18 @@ def syntax_review_tool(original_markdown: str) -> str:
     
     fix_syntax_task = Task(description="""Review the markdown for any syntax errors.                         
                         Correct any syntax issues you find in the markdown. 
-                        It is VERY important that you do not edit the content, only the formatting and structure to ensure valid markdown syntax.
-                        You may also use the web to reference any documenation you may need.
-                        Once the markdown is valid, return the updated markdown code block as your Final Answer in your response.
-                        It is VERY import to say this is your Final Answer when the markdown is valid.
+                        It is VERY important that you do not edit the content, 
+                           ONLY update the formatting and structure to ensure valid markdown syntax.
+                        Your job depends on preserving content, while correcting syntax errors.
+                        Return the updated markdown code block as your Final Answer in your response.
+                        It is VERY important to say this is your Final Answer when the markdown is valid.
                         Here is the markdown to review and correct.
-                        Markdown Code Block:\n\n""" + original_markdown, 
+                        Markdown Code Block:\n\n""" + original_markdown.lstrip().rstrip(), 
                         agent=ability_validator_agent)
     
     fix_syntax_crew = Crew(agents=[ability_validator_agent], 
-                           tasks=[fix_syntax_task], process=Process.sequential)
+                           tasks=[fix_syntax_task], 
+                           process=Process.sequential)
     
     updated_markdown = fix_syntax_crew.kickoff()
     return updated_markdown  # Return the reviewed document
@@ -120,8 +131,10 @@ def editorial_review_tool(original_markdown: str) -> str:
     Updates the content to have correct grammar and spelling.
     
     Parameters:
-    - original_markdown (str): The content, typically in markdown format.
-    
+    - original_markdown (str): The content, a string in markdown format.
+        For example a message in this format:
+        Action: editorial_review_tool
+        Action Input: [insert the original markdown value here]
     Returns:
     - str: The updated content in markdown format.
     """
@@ -130,8 +143,8 @@ def editorial_review_tool(original_markdown: str) -> str:
                        Respond with a list of recommended changes once you are satisfied with the content.
                        Be sure to say this is your Final Answer when you are ready to provide the updated content.
                        \n\n""" + original_markdown, 
-                       agent=general_agent)
-    review_crew = Crew(agents=[general_agent, editorial_review_agent, research_agent], tasks=[review_task], process=Process.sequential)
+                       agent=editorial_review_agent)
+    review_crew = Crew(agents=[editorial_review_agent, research_agent], tasks=[review_task], process=Process.sequential)
     updated_markdown = review_crew.kickoff()
     return updated_markdown  # Return the editorially reviewed document
 
@@ -148,24 +161,25 @@ research_agent = Agent(role='Researcher',
 # ability_validator_tool.add_template_regex( r'::: ability\n\s*<h3>\s*</h3>\s*<p>\s*</p>\s*\n:::')
 
 ability_validator_agent = Agent(role='Ability Validator',
-                                backstory="You are an expert markdown validator.",
-                                goal="""If the document is valid, return your Final Answer stating no changes are required. 
-                                    If the document is not valid, update the existing markdown with the corrected markdown.
-                                    Be sure not to change the content, only the formatting and structure as needed to ensure the document is valid.
-                                    Once you are satisfied with the corrected markdown and it is valid, 
-                                    provide the corrected markdown as your Final Answer in your response.
+                                backstory="You are an expert markdown validator. You are an expert in formatting and structure. You following formatting guidelines strictly.",
+                                goal="""
+                                    Update the formatting and structure of the provided markdown as needed to ensure the document is valid.
+                                    Once you are satisfied with the corrected markdown and it is valid, provide the corrected markdown 
+                                    as your Final Answer in your response.                                    
                                     """, 
                                 allow_delegation=False, 
                                 verbose=True,
                                 llm=defalut_llm,
-                                tools=[search_tool])
+                                tools=[syntax_review_tool])
 
 
 editorial_review_agent = Agent(role='Editorial Reviewer',
                                backstory="You are an expert markdown reviewer.",
                                goal="""Review the Markdown document for editorial errors, such as grammar or spelling mistakes.
                                        If there are any, update the existing markdown with the corrected markdown and 
-                                       return the corrected markdown.
+                                       return the corrected markdown. 
+                                       It is VERY important that you pass in the entire content to any tools that you may use.
+                                       Once the content has been updated, provide the corrected markdown as your Final Answer in your response.
                                        """,
                                allow_delegation=False,
                                llm=defalut_llm,
@@ -178,41 +192,58 @@ aider_agent.llm = defalut_llm
 # General Agent Setup
 general_agent = Agent(role='General Document Processor',
                       backstory="You are an expert project manager.",
-                       goal='Process Markdown documents through various stages. Once you have a final answer from the crew, provide it in your response and move on to the next task.', 
-                       allow_delegation=True, 
-                       verbose=True, llm=defalut_llm)
+                    goal="""Process Markdown documents through various stages. 
+                        It is VERY important that you pass in the entire content to any tools that you may use.
+                        Once you have a final answer from the crew, provide it in your response and move on to the next task.
+                        """, 
+                    allow_delegation=True, 
+                    verbose=True, llm=defalut_llm)
 
-general_agent.tools.extend([syntax_review_tool, editorial_review_tool])
+#general_agent.tools.extend([syntax_review_tool, editorial_review_tool])
 
 
 # Function to Process Documents with the Crew
 def process_markdown_document(filename, markdown):
     # Define Tasks Using Crew Tools
+    syntax_tasks = [
+        Task(description='Use syntax_review_tool to review this content and reutrn the corrected markdown: \n\n Markdown: \n\n' + markdown, 
+             agent=ability_validator_agent),       
+    ]
+    # Instantiate and Configure a Single Crew
+    syntax_crew = Crew(agents=[ability_validator_agent], tasks=syntax_tasks, process=Process.sequential)
+
+    updated_markdown = syntax_crew.kickoff()
+
+
     tasks = [
-        Task(description='Use syntax_review_tool to review the following content and reutrn the corrected markdown: \n\n' + markdown, agent=general_agent),
+        #Task(description='Use syntax_review_tool to review the original markdown and reutrn the corrected markdown: \n\n' + markdown, agent=general_agent),
         #Task(description='Write updated markdown to the file', agent=aider_agent),
-        Task(description='Use editorial_review_tool to review the following markdown: \n\n' + markdown, agent=general_agent),
-        Task(description='Write the updated markdown to this file: ' + filename, agent=general_agent)
+        Task(description='Use editorial_review_tool to review the following markdown and reutrn the updated markdown: \n\n' + updated_markdown, agent=editorial_review_agent),
+        Task(description='Write the updated markdown to this file: ' + filename, agent=editorial_review_agent)
     ]
 
     # Instantiate and Configure a Single Crew
-    document_processing_crew = Crew(agents=[general_agent, aider_agent], tasks=tasks, process=Process.sequential)
+    document_processing_crew = Crew(agents=[editorial_review_agent, aider_agent], tasks=tasks, process=Process.sequential)
 
     processed_document = document_processing_crew.kickoff()
+
     return processed_document
 
 # Example Usage
 example_document = """
-    ```
+
     ::: ability
 
-    ### Your Markdown document content here ###
+    ### This is a level 3 header ###
+> //> some crazy characters here <--
 
-    some other text here
+    an actual paragraph of text
 
     :::
 
-    ```
     """
+
+# set example document to the content of the ./example_document.md
+example_document = open('README.md', 'r').read()
 processed_document = process_markdown_document("example.md", example_document)
 print(processed_document)
