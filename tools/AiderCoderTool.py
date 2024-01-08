@@ -15,7 +15,7 @@ class FileUpdateInput(BaseModel):
     instructions: str = Field(description="Instructions to update the file")
 
 # Custom LangChain tool that updates files using the Coder object
-class AiderFileUpdaterTool(BaseTool):
+class AiderCoderTool(BaseTool):
     name = "aider_file_updater"
     description = "Updates a file with specific instructions using the Aider Coder"
     args_schema = FileUpdateInput

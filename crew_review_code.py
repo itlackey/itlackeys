@@ -111,7 +111,7 @@ def review_file(file, action, cache_seed):
     defalut_llm = ChatOpenAI(openai_api_base=os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1"),
                         temperature=0,
                         top_p=0.3,
-                        model_name="deepseek-coder-6.7b-instruct") #"gpt-3.5-turbo")
+                        model_name="Magicoder-DS-6.7B") #"gpt-3.5-turbo")
     # Define your agents with roles and goals
     researcher = Agent(
         role='Researcher',
