@@ -6,3 +6,4 @@ openai>=1.5.0
 python-dotenv==0.19.2
 pyautogen
 markdown
+pymarkdownlnt

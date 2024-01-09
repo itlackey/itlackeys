@@ -14,9 +14,9 @@ os.environ.clear()
 load_dotenv()
 defalut_llm = ChatOpenAI(openai_api_base=os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1"),
                         openai_api_key=os.environ.get("OPENAI_API_KEY"),
-                        temperature=0,
-                        top_p=0.3,
-                        model_name=os.environ.get("ITL_MAIN_MODEL_NAME", "gpt-3.5-turbo"))
+                        temperature=0.4,                        
+                        model_name="dolphin-2.6-mistral-dpo-7b-q4_k_m", # os.environ.get("ITL_MAIN_MODEL_NAME", "gpt-3.5-turbo"),
+                        top_p=0.4)
 
 def write_to_markdown(message, file_name) -> str:
 
@@ -63,18 +63,15 @@ def syntax_review_tool(original_markdown: str) -> str:
 
     Parameters:
     - original_markdown: The markdown to be reviewed. This should be a string of markdown passed into the tool
-    and should contain the entire string. DO NOT truncate or remove any of the context.
-
-    For example a message in this format:
-    Thought: Do I need to use a tool? Yes
-    Action: syntax_review_tool
-    Action Input: [insert the value of original_markdown value]
-    Observation:
+    and should contain the entire string of markdown. DO NOT truncate or remove any of the context.
 
     Returns:
     - updated_markdown: The corrected markdown based on the syntax review. The correct markdown should not modify any of the context, only the syntax.
     """
     
+
+    # Observation:
+
     print("\n\nValidating Markdown syntax...\n\n" + original_markdown)
 
     rendered_html = markdown.markdown(original_markdown)
@@ -108,12 +105,8 @@ def syntax_review_tool(original_markdown: str) -> str:
         return original_markdown
     
     fix_syntax_task = Task(description="""Review the markdown for any syntax errors.                         
-                        Correct any syntax issues you find in the markdown. 
-                        It is VERY important that you do not edit the content, 
-                           ONLY update the formatting and structure to ensure valid markdown syntax.
-                        Your job depends on preserving content, while correcting syntax errors.
-                        Return the updated markdown code block as your Final Answer in your response.
-                        It is VERY important to say this is your Final Answer when the markdown is valid.
+                        List any syntax issues you find in the markdown. 
+                        Do not change the markdown. ONLY provide a list of the issues you have found.                        
                         Here is the markdown to review and correct.
                         Markdown Code Block:\n\n""" + original_markdown.lstrip().rstrip(), 
                         agent=ability_validator_agent)
@@ -169,8 +162,7 @@ ability_validator_agent = Agent(role='Ability Validator',
                                     """, 
                                 allow_delegation=False, 
                                 verbose=True,
-                                llm=defalut_llm,
-                                tools=[syntax_review_tool])
+                                llm=defalut_llm)
 
 
 editorial_review_agent = Agent(role='Editorial Reviewer',
@@ -190,14 +182,47 @@ aider_agent = aider_coder_agent(defalut_llm)
 aider_agent.llm = defalut_llm
 
 # General Agent Setup
-general_agent = Agent(role='General Document Processor',
-                      backstory="You are an expert project manager.",
-                    goal="""Process Markdown documents through various stages. 
-                        It is VERY important that you pass in the entire content to any tools that you may use.
-                        Once you have a final answer from the crew, provide it in your response and move on to the next task.
+general_agent = Agent(role='General Assistant',
+                        backstory="You are an expert team coach. You help team members with their tasks effectively.",
+                        goal="""
+                        To help your team members communicate effectively, provide feedback and action items for your team.
+                        You are available to assist in formatting team members responses correctly to leverage tools or delegate tasks.
+                        You remind team members to use the correct format when requesting help from a team member or accessing a tool.
+
+                            To use a ask a question of a team member or delegate work to them, please use the following format:        
+                            ```
+                            Thought: Do I need to use a tool? Yes
+                            Action: [Delegate work to co-worker, Ask question to co-worker]
+                            Action Input: [coworker name]|['question' or 'task']|[information about the task or question]
+                            ```
+
+                            For example to ask a the Software Engineer to check the code for best practices:
+                            ``` 
+                                Thought: Do I need to use a tool? Yes
+                                Action: Ask question to co-worker
+                                Action Input: Senior Software Engineer|question|Check the code for best practices
+                               
+                            ```
+
+                            To use a tool, please use the following format:        
+                            ```
+                            Thought: Do I need to use a tool? Yes
+                            Action: [name of tool]
+                            Action Input: [the value needed by the tool's arguments]
+                            ```
+
+                            For example to use the syntax review tool:
+                            ```
+                            Thought: Do I need to use a tool? Yes
+                            Action: syntax_review_tool
+                            Action Input: "print('hello world')"
+                            ```
+                        Be sure to complete the task once the final answer has been provided.
                         """, 
-                    allow_delegation=True, 
-                    verbose=True, llm=defalut_llm)
+                        allow_delegation=False, 
+                        verbose=True,
+                        tools=[syntax_review_tool],
+                        llm=defalut_llm)
 
 #general_agent.tools.extend([syntax_review_tool, editorial_review_tool])
 
@@ -206,14 +231,16 @@ general_agent = Agent(role='General Document Processor',
 def process_markdown_document(filename, markdown):
     # Define Tasks Using Crew Tools
     syntax_tasks = [
-        Task(description='Use syntax_review_tool to review this content and reutrn the corrected markdown: \n\n Markdown: \n\n' + markdown, 
-             agent=ability_validator_agent),       
+        Task(description="Tell your team how to use the syntax_review_tool to review the following markdown: \n\nBEGIN\n\n" + markdown + "\n\nEND MARKDOWN\n\n" + markdown, agent=general_agent),
+        # Task(description='Use syntax_review_tool to review this content and return the list of needed changes. \n\n Markdown: \n\n' + markdown, 
+        #      agent=ability_validator_agent),       
     ]
     # Instantiate and Configure a Single Crew
-    syntax_crew = Crew(agents=[ability_validator_agent], tasks=syntax_tasks, process=Process.sequential)
+    syntax_crew = Crew(agents=[general_agent], tasks=syntax_tasks, process=Process.sequential)
 
     updated_markdown = syntax_crew.kickoff()
 
+    return updated_markdown
 
     tasks = [
         #Task(description='Use syntax_review_tool to review the original markdown and reutrn the corrected markdown: \n\n' + markdown, agent=general_agent),
@@ -244,6 +271,6 @@ example_document = """
     """
 
 # set example document to the content of the ./example_document.md
-example_document = open('README.md', 'r').read()
+#example_document = open('README.md', 'r').read()
 processed_document = process_markdown_document("example.md", example_document)
 print(processed_document)
