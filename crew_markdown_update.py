@@ -2,83 +2,17 @@ import sys
 from crewai import Agent, Task, Crew, Process
 import os
 from dotenv import load_dotenv
-from langchain.tools import tool
+
 from langchain.llms import Ollama
-from pymarkdown.api import PyMarkdownApi, PyMarkdownApiException
+from tools.AiderCoderTools import file_editor_tool
+from tools.MarkdownTools import markdown_validation_tool
 
 load_dotenv()
 
-default_model_name = os.environ.get("MODEL_NAME", "gpt-3.5-turbo")
 
-default_llm = Ollama(model="openhermes")
+default_llm = Ollama(model=os.environ.get("ITL_MAIN_MODEL_NAME", "openhermes"))
 
-@tool("markdown_validation_tool")
-def markdown_validation_tool(file_path: str) -> str:
-    """
-    A tool to review files for markdown syntax errors.
-
-    Parameters:
-    - file_path: The path to the markdown file to be reviewed.
-
-    Returns:
-    - validation_results: A list of validation results 
-    and suggestions on how to fix them.
-    """
-    
-    print("\n\nValidating Markdown syntax...\n\n" + file_path)
-
-    scan_result = None
-    try:
-        scan_result = PyMarkdownApi().scan_path(file_path)
-        results = str(scan_result)    
-        return results  # Return the reviewed document
-    except PyMarkdownApiException as this_exception:
-        print(f"API Exception: {this_exception}", file=sys.stderr)
-        return f"API Exception: {str(this_exception)}"
-    
-@tool("file_editor_tool")
-def file_editor_tool(file_path_and_instructions: str) -> str:
-    """
-    A tool to edit files based on the provided instructions.
-
-    Parameters:
-    - file_path_and_instructions:  The changes to make to the file and the path to the file to be edited.
-
-    This string should be in the format "<file_path>|<instructions>".
-    
-    Returns:
-    - result: The status of the edit.
-    """
-    import openai
-    from aider.coders import Coder
-    from aider import  models
-
-    file_path, instructions = file_path_and_instructions.split("|")
-
-    print("\n\nEditing file...\n\n" + file_path)
-
-    result = None
-    try:
-        client = openai.OpenAI(api_key=os.environ.get("AIDER_OPENAI_API_KEY", os.environ["OPENAI_API_KEY"]), 
-                        base_url=
-                        os.environ.get("AIDER_OPENAI_API_BASE_URL", os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1")))
-
-        model_name = os.environ.get("AIDER_MODEL", "gpt-3.5-turbo") 
-
-        model =  models.Model.create(model_name, client)
-        # Create a Coder object with the file to be updated
-        coder = Coder.create(client=client, main_model=model, fnames=[file_path])
-
-        # Execute the instructions on the file
-        result = coder.run(instructions)
-        #print(result)
-        
-        return result
-    except Exception as this_exception:
-        print(f"File Edit Exception: {this_exception}", file=sys.stderr)
-        return f"Final Answer: There was an error when editing the file:\n\n {str(this_exception)}"
-   
-
+  
 def process_markdown_document(filename):
     """
     Processes a markdown document by reviewing its syntax validation 
