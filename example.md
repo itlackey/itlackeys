@@ -1,6 +1,6 @@
 # Example
 
-### Usage
+## Usage
 
 To use the tools in this repository, you will need to set up your environment by copying `.env.example` to `.env` and filling in your details. You can also modify `local.json` as needed to point to your local language model instances.
 
