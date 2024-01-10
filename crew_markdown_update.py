@@ -174,13 +174,14 @@ def process_markdown_document(filename):
 			Use the instructions provided to you to edit the specified 
 			the file(s) at this path: {filename}
             
+            Once the file is edited, return the result as your Final Answer.
+            
 			Be sure to pass only the file path to the file_editor_tool.
 			Use the following format to call the file_editor_tool:
 			Do I need to use a tool? Yes
 			Action: file_editor_tool
 			Action Input: {filename}|{instructions}
 
-            Once the file is edited, return the result as your Final Answer.
 			""",
             agent=file_editor_agent)  
     
