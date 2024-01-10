@@ -89,7 +89,7 @@ def file_editor_tool(file_path_and_instructions: str) -> str:
     from aider import  models
 
     file_path, instructions = file_path_and_instructions.split("|")
-    
+
     print("\n\nEditing file...\n\n" + file_path)
 
     result = None
@@ -108,10 +108,10 @@ def file_editor_tool(file_path_and_instructions: str) -> str:
         result = coder.run(instructions)
         print(result)
         
-        return "Finished editing the file"
+        return "Final Answer: All changes have been made. Finished editing the file"
     except Exception as this_exception:
         print(f"File Edit Exception: {this_exception}", file=sys.stderr)
-        return f"There was an error when editing the file:\n\n {str(this_exception)}"
+        return f"Final Answer: There was an error when editing the file:\n\n {str(this_exception)}"
    
 
 def process_markdown_document(filename):
@@ -180,7 +180,7 @@ def process_markdown_document(filename):
 			Action: file_editor_tool
 			Action Input: {filename}|{instructions}
 
-
+            Once the file is edited, return the result as your Final Answer.
 			""",
             agent=file_editor_agent)  
     
