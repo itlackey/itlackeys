@@ -1,8 +1,8 @@
-# This is an example markdown document.
+# This is an example markdown document
 
 Hi!
 
-### Example #
+## Example
 
 >test
 
@@ -16,10 +16,10 @@ Once configured, you can run the `review_files.py` script to perform actions on 
 
 For more detailed usage instructions, refer to the comments and documentation within the `review_files.py` script.
 
-### Contributing
+## Contributing
 
 Contributions to this repository are welcome. Please ensure that you follow the existing code conventions and include appropriate tests and documentation with your pull requests.
 
-### License
+## License
 
 This repository is licensed under the MIT License.
