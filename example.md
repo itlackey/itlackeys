@@ -1,3 +1,5 @@
+# This is an example markdown document.
+
 Hi!
 
 ### Example #
