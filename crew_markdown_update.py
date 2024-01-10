@@ -1,276 +1,249 @@
-from crewai import Agent, Task, Crew, Process
+import sys
+from crewai import Agent, Task
 import os
 from dotenv import load_dotenv
-from langchain.tools import tool, DuckDuckGoSearchRun
-import markdown
-import regex
+from langchain.tools import tool
 
-from crew.AiderCoderAgent import aider_coder_agent
-
-from langchain.chat_models.openai import ChatOpenAI
-
-os.environ.clear()
+from langchain.llms import Ollama
+#from langchain.chat_models.openai import ChatOpenAI
+from pymarkdown.api import PyMarkdownApi, PyMarkdownApiException
 
 load_dotenv()
-defalut_llm = ChatOpenAI(openai_api_base=os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1"),
-                        openai_api_key=os.environ.get("OPENAI_API_KEY"),
-                        temperature=0.4,                        
-                        model_name="dolphin-2.6-mistral-dpo-7b-q4_k_m", # os.environ.get("ITL_MAIN_MODEL_NAME", "gpt-3.5-turbo"),
-                        top_p=0.4)
 
-def write_to_markdown(message, file_name) -> str:
-
-    file_dir = os.path.dirname(file_name)
-    if not os.path.exists(file_dir):
-        os.makedirs(file_dir)
-
-    with open(file_name, 'w') as file:
-        file.write(f'{message}\n\n')
-
-    return f"Message written to {file_name}."
+default_model_name = os.environ.get("MODEL_NAME", "gpt-3.5-turbo")
 
 
-# @tool("validate_markdown")
-# def validate_markdown(content: str) -> str:
-#     """
-#     Validates the syntax of a given Markdown content.
+# default_llm = ChatOpenAI(openai_api_base=os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1"),
+#                         openai_api_key=os.environ.get("OPENAI_API_KEY"),
+#                         temperature=0.1,                        
+#                         model_name=os.environ.get("MODEL_NAME", "gpt-3.5-turbo"),
+#                         top_p=0.3)
 
-#     Args:
-#         content (str): The entire markdown content to be validated.
+default_llm = Ollama(model="openhermes")
 
-#     Returns:
-#         str: A message indicating whether the Markdown content is valid or not.
-#     """
-
-#     print("Validating Markdown syntax..." + content)
-
-#     # Render the Markdown to HTML
-#     rendered_html = markdown.markdown(content)
-
-#     template_regex = regex.compile(r'\s*<p>\s*</p>\s*') #r'::: ability\n\s*<h3>\s*</h3>\s*<p>\s*</p>\s*\n:::'
-#     # Validate the rendered HTML against the predefined template using regex
-#     if template_regex.fullmatch(rendered_html) is not None:
-#         return "Markdown content is valid."
-#     else:
-#         return "Markdown content is not valid."
-
-
-# Crews as Tools Definitions
-@tool("syntax_review_tool")
-def syntax_review_tool(original_markdown: str) -> str:
+@tool("markdown_validation_tool")
+def markdown_validation_tool(file_path: str) -> str:
     """
-    A tool to review strings for markdown syntax errors.
+    A tool to review files for markdown syntax errors.
 
     Parameters:
-    - original_markdown: The markdown to be reviewed. This should be a string of markdown passed into the tool
-    and should contain the entire string of markdown. DO NOT truncate or remove any of the context.
+    - file_path: The path to the markdown file to be reviewed.
 
     Returns:
-    - updated_markdown: The corrected markdown based on the syntax review. The correct markdown should not modify any of the context, only the syntax.
+    - validation_results: A list of validation results 
+    and suggestions on how to fix them.
     """
     
+    print("\n\nValidating Markdown syntax...\n\n" + file_path)
 
-    # Observation:
-
-    print("\n\nValidating Markdown syntax...\n\n" + original_markdown)
-
-    rendered_html = markdown.markdown(original_markdown)
-
-    template_regex = regex.compile(r'\s*<p>\s*</p>\s*') #r'::: ability\n\s*<h3>\s*</h3>\s*<p>\s*</p>\s*\n:::'
-    # Validate the rendered HTML against the predefined template using regex
-    
-    is_valid = template_regex.fullmatch(rendered_html) is not None
-    
-    
-    # validate_task = Task(description="""Review the markdown for any syntax errors.
-    #                      Use the markdown_validator tool to ensure the syntax is correct. Be sure to include the 
-    #                      markdown code block as the Action Input when calling the markdown_validator tool.
-    #                      If you do not include the markdown code block below when calling the markdown_validator tool, 
-    #                      the task will fail. It is VERY important that you pass the entire Markdown Code Block content to the validator tool!
-    #                      If the markdown is not valid, then update the markdown and revalidate.
-    #                      Correct any syntax issues you find in the markdown. 
-    #                      It is VERY important that you do not edit the content, only the formatting and structure to ensure valid markdown syntax.
-    #                      You may also use the web to reference any documenation you may need.
-    #                      Once the markdown is valid, provide the updated markdown code block as your Final Answer in your response.
-    #                      Here is the markdown to review and correct.
-    #                      Markdown Code Block:\n\n""" + markdown, 
-    #                      agent=ability_validator_agent)
-    
-    # validation_crew = Crew(agents=[ability_validator_agent], 
-    #                        tasks=[validate_task], process=Process.sequential)
-    
-    # updated_markdown = validation_crew.kickoff()
-
-    if(is_valid):
-        return original_markdown
-    
-    fix_syntax_task = Task(description="""Review the markdown for any syntax errors.                         
-                        List any syntax issues you find in the markdown. 
-                        Do not change the markdown. ONLY provide a list of the issues you have found.                        
-                        Here is the markdown to review and correct.
-                        Markdown Code Block:\n\n""" + original_markdown.lstrip().rstrip(), 
-                        agent=ability_validator_agent)
-    
-    fix_syntax_crew = Crew(agents=[ability_validator_agent], 
-                           tasks=[fix_syntax_task], 
-                           process=Process.sequential)
-    
-    updated_markdown = fix_syntax_crew.kickoff()
-    return updated_markdown  # Return the reviewed document
-
-@tool("editorial_review_tool")
-def editorial_review_tool(original_markdown: str) -> str:
-    """
-    Updates the content to have correct grammar and spelling.
-    
-    Parameters:
-    - original_markdown (str): The content, a string in markdown format.
-        For example a message in this format:
-        Action: editorial_review_tool
-        Action Input: [insert the original markdown value here]
-    Returns:
-    - str: The updated content in markdown format.
-    """
-    
-    review_task = Task(description="""Review the following content for editorial errors. 
-                       Respond with a list of recommended changes once you are satisfied with the content.
-                       Be sure to say this is your Final Answer when you are ready to provide the updated content.
-                       \n\n""" + original_markdown, 
-                       agent=editorial_review_agent)
-    review_crew = Crew(agents=[editorial_review_agent, research_agent], tasks=[review_task], process=Process.sequential)
-    updated_markdown = review_crew.kickoff()
-    return updated_markdown  # Return the editorially reviewed document
-
-search_tool = DuckDuckGoSearchRun()
-research_agent = Agent(role='Researcher', 
-        goal='Find relevant information about the document. Such as documentation on proper markdown syntax, or proper grammar.', 
-        backstory="""You are a world renowed researcher that uses the web to find the latest documentation for language and frameworks.""",
-        allow_delegation=False, 
-        verbose=True,
-        llm=defalut_llm,
-        tools=[search_tool])
-
-# ability_validator_tool = MarkdownValidatorTool() #r'::: ability\n\s*<h3>\s*</h3>\s*<p>\s*</p>\s*\n:::')
-# ability_validator_tool.add_template_regex( r'::: ability\n\s*<h3>\s*</h3>\s*<p>\s*</p>\s*\n:::')
-
-ability_validator_agent = Agent(role='Ability Validator',
-                                backstory="You are an expert markdown validator. You are an expert in formatting and structure. You following formatting guidelines strictly.",
+    scan_result = None
+    try:
+        scan_result = PyMarkdownApi().scan_path(file_path)
+        results = str(scan_result)
+        print(results)
+        syntax_validator_agent = Agent(role='Syntax Validator',
+                                backstory="""You are an expert markdown validator. 
+								You are an expert in formatting and structure. 
+								You following formatting guidelines strictly.""",
                                 goal="""
-                                    Update the formatting and structure of the provided markdown as needed to ensure the document is valid.
-                                    Once you are satisfied with the corrected markdown and it is valid, provide the corrected markdown 
-                                    as your Final Answer in your response.                                    
-                                    """, 
+                                Provide a detailed list of the provided markdown 
+                                linting results. Give a summary with actionable 
+								tasks to address the validation results. Write your 
+								response as if you were handing it to a developer 
+								to fix the issues.
+                                DO NOT provide examples of how to fix the issues.
+								""", 
                                 allow_delegation=False, 
                                 verbose=True,
-                                llm=defalut_llm)
+                                llm=default_llm)
 
+        fix_syntax_task = Task(description="""Give a detailed list of the 
+                               validation results below. Be sure to to include 
+                               suggestions on how to fix the issues.
+                               \n\nValidation Results:\n\n""" + results, 
+                            agent=syntax_validator_agent)
+            
+        updated_markdown = fix_syntax_task.execute()
 
-editorial_review_agent = Agent(role='Editorial Reviewer',
-                               backstory="You are an expert markdown reviewer.",
-                               goal="""Review the Markdown document for editorial errors, such as grammar or spelling mistakes.
-                                       If there are any, update the existing markdown with the corrected markdown and 
-                                       return the corrected markdown. 
-                                       It is VERY important that you pass in the entire content to any tools that you may use.
-                                       Once the content has been updated, provide the corrected markdown as your Final Answer in your response.
-                                       """,
-                               allow_delegation=False,
-                               llm=defalut_llm,
-                               verbose=True)
+        return updated_markdown  # Return the reviewed document
+    except PyMarkdownApiException as this_exception:
+        print(f"API Exception: {this_exception}", file=sys.stderr)
+        return f"API Exception: {str(this_exception)}"
+    
 
+@tool("file_editor_tool")
+def file_editor_tool(file_path_and_instructions: str) -> str:
+    """
+    A tool to edit files based on the provided instructions.
 
-aider_agent = aider_coder_agent(defalut_llm)
-aider_agent.llm = defalut_llm
+    Parameters:
+    - file_path_and_instructions:  The changes to make to the file and the path to the file to be edited.
 
-# General Agent Setup
-general_agent = Agent(role='General Assistant',
-                        backstory="You are an expert team coach. You help team members with their tasks effectively.",
-                        goal="""
-                        To help your team members communicate effectively, provide feedback and action items for your team.
-                        You are available to assist in formatting team members responses correctly to leverage tools or delegate tasks.
-                        You remind team members to use the correct format when requesting help from a team member or accessing a tool.
+    This string should be in the format "<file_path>|<instructions>".
+    
+    Returns:
+    - result: The status of the edit.
+    """
+    import openai
+    from aider.coders import Coder
+    from aider import  models
 
-                            To use a ask a question of a team member or delegate work to them, please use the following format:        
-                            ```
-                            Thought: Do I need to use a tool? Yes
-                            Action: [Delegate work to co-worker, Ask question to co-worker]
-                            Action Input: [coworker name]|['question' or 'task']|[information about the task or question]
-                            ```
+    file_path, instructions = file_path_and_instructions.split("|")
+    
+    print("\n\nEditing file...\n\n" + file_path)
 
-                            For example to ask a the Software Engineer to check the code for best practices:
-                            ``` 
-                                Thought: Do I need to use a tool? Yes
-                                Action: Ask question to co-worker
-                                Action Input: Senior Software Engineer|question|Check the code for best practices
-                               
-                            ```
+    result = None
+    try:
+        client = openai.OpenAI(api_key=os.environ.get("AIDER_OPENAI_API_KEY", os.environ["OPENAI_API_KEY"]), 
+                        base_url=
+                        os.environ.get("AIDER_OPENAI_API_BASE_URL", os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1")))
 
-                            To use a tool, please use the following format:        
-                            ```
-                            Thought: Do I need to use a tool? Yes
-                            Action: [name of tool]
-                            Action Input: [the value needed by the tool's arguments]
-                            ```
+        model_name = os.environ.get("AIDER_MODEL", "gpt-3.5-turbo") 
 
-                            For example to use the syntax review tool:
-                            ```
-                            Thought: Do I need to use a tool? Yes
-                            Action: syntax_review_tool
-                            Action Input: "print('hello world')"
-                            ```
-                        Be sure to complete the task once the final answer has been provided.
-                        """, 
-                        allow_delegation=False, 
-                        verbose=True,
-                        tools=[syntax_review_tool],
-                        llm=defalut_llm)
+        model =  models.Model.create(model_name, client)
+        # Create a Coder object with the file to be updated
+        coder = Coder.create(client=client, main_model=model, fnames=[file_path])
 
-#general_agent.tools.extend([syntax_review_tool, editorial_review_tool])
+        # Execute the instructions on the file
+        result = coder.run(instructions)
+        print(result)
+        
+        return "Finished editing the file"
+    except Exception as this_exception:
+        print(f"File Edit Exception: {this_exception}", file=sys.stderr)
+        return f"There was an error when editing the file:\n\n {str(this_exception)}"
+   
 
+def process_markdown_document(filename):
+    """
+    Processes a markdown document by reviewing its syntax validation 
+    results and providing feedback on necessary changes.
 
-# Function to Process Documents with the Crew
-def process_markdown_document(filename, markdown):
-    # Define Tasks Using Crew Tools
-    syntax_tasks = [
-        Task(description="Tell your team how to use the syntax_review_tool to review the following markdown: \n\nBEGIN\n\n" + markdown + "\n\nEND MARKDOWN\n\n" + markdown, agent=general_agent),
-        # Task(description='Use syntax_review_tool to review this content and return the list of needed changes. \n\n Markdown: \n\n' + markdown, 
-        #      agent=ability_validator_agent),       
-    ]
-    # Instantiate and Configure a Single Crew
-    syntax_crew = Crew(agents=[general_agent], tasks=syntax_tasks, process=Process.sequential)
+    Args:
+        filename (str): The path to the markdown file to be processed.
 
-    updated_markdown = syntax_crew.kickoff()
-
-    return updated_markdown
-
-    tasks = [
-        #Task(description='Use syntax_review_tool to review the original markdown and reutrn the corrected markdown: \n\n' + markdown, agent=general_agent),
-        #Task(description='Write updated markdown to the file', agent=aider_agent),
-        Task(description='Use editorial_review_tool to review the following markdown and reutrn the updated markdown: \n\n' + updated_markdown, agent=editorial_review_agent),
-        Task(description='Write the updated markdown to this file: ' + filename, agent=editorial_review_agent)
-    ]
-
-    # Instantiate and Configure a Single Crew
-    document_processing_crew = Crew(agents=[editorial_review_agent, aider_agent], tasks=tasks, process=Process.sequential)
-
-    processed_document = document_processing_crew.kickoff()
-
-    return processed_document
-
-# Example Usage
-example_document = """
-
-    ::: ability
-
-    ### This is a level 3 header ###
-> //> some crazy characters here <--
-
-    an actual paragraph of text
-
-    :::
+    Returns:
+        str: The list of recommended changes to make to the document.
 
     """
 
-# set example document to the content of the ./example_document.md
-#example_document = open('README.md', 'r').read()
-processed_document = process_markdown_document("example.md", example_document)
-print(processed_document)
+    # Define general agent
+    general_agent  = Agent(role='Requirements Manager',
+                    goal="""To use the available tools to provide 
+					execellent feedback to the team members.""",
+                    backstory="""You are an expert business analyst 
+					and software QA specialist. You provide high quality, 
+                    thorough, insightful and actionable feedback.""",
+                    allow_delegation=False, 
+                    verbose=True,
+                    tools=[markdown_validation_tool],
+                    llm=default_llm)
+    
+    file_editor_agent = Agent(role='File Editor',
+                    goal="""To take a like of changes and apply them to a file.""",
+                    backstory="""You are an expert developer and content writer. 
+                    You edit documents based on the provided instructions.""",
+                    allow_delegation=False, 
+                    verbose=True,
+                    tools=[file_editor_tool],
+                    llm=default_llm)
+
+    # Define Tasks Using Crew Tools
+    syntax_review_task = Task(description=f"""
+			Use the markdown_validation_tool to review 
+			the file(s) at this path: {filename}
+            
+			Be sure to pass only the file path to the markdown_validation_tool.
+			Use the following format to call the markdown_validation_tool:
+			Do I need to use a tool? Yes
+			Action: markdown_validation_tool
+			Action Input: {filename}
+
+			Collect the final answer from the syntax review tool 
+			and then summarize it into a list of changes
+			the developer should make to the document.
+			
+			If you already know the answer or if you do not need 
+			to use a tool, return it as your Final Answer.""",
+             agent=general_agent)
+
+    
+    instructions = syntax_review_task.execute()
+    
+    edit_file_task = Task(description=f"""
+			Use the instructions provided to you to edit the specified 
+			the file(s) at this path: {filename}
+            
+			Be sure to pass only the file path to the file_editor_tool.
+			Use the following format to call the file_editor_tool:
+			Do I need to use a tool? Yes
+			Action: file_editor_tool
+			Action Input: {filename}|{instructions}
+
+
+			""",
+            agent=file_editor_agent)  
+    
+    result = edit_file_task.execute()
+
+    return result
+
+
+# processed_document = process_markdown_document("README.md")
+# print(processed_document)
+
+# If called directly from the command line take the first argument as the filename
+if __name__ == "__main__":
+
+    if len(sys.argv) > 1:
+        filename = sys.argv[1]
+        processed_document = process_markdown_document(filename)
+        print(processed_document)
+
+
+
+
+### Example Validation Results
+
+##ikawrakow/open-hermes-2.5-mistral-7b-quantized-gguf/oh-2.5-m7b-q51.gguf
+        
+# model_name="oh-2.5m7b-q51",
+# temperature=0.1,           
+# top_p=0.3
+
+# Here is a list of changes that the developer should make to the README.md file based 
+# on the validation results from the markdown_validation_tool:
+
+# 1. Add a # at the beginning of the first line to make it a 
+# level 1 heading (e.g., "# My Project").
+# 2. Break line 3 into two or more shorter lines, 
+# as it is currently too long (127 characters).
+# 3. Break line 7 into two or more shorter lines, 
+# as it is currently too long (94 characters).
+# 4. Break line 44 into multiple shorter lines or rephrase the content to 
+# make it more concise, as it is extremely long (234 characters).
+# 5. Repeat steps 1-4 for the remaining PyMarkdownScanFailure 
+# entries in the validation results list.
+# 6. Ensure that the README.md file follows proper Markdown syntax 
+# and is well-structured, with appropriate headings, paragraphs, and lists as needed.
+# 7. Add a brief introduction to the project at the beginning of the README.md file, 
+# explaining its purpose and any key features or functionalities.
+# 8. Review the overall readability and clarity of the README.md file, 
+# making adjustments as necessary to ensure it is easy for others to understand and navigate.
+
+## TheBloke/dolphin-2.6-mistral-7b-dpo.Q4_K_M.gguf        
+# model_name="dolphin-2.6-mistral-dpo-7b-q4_k_m",
+# temperature=0.1,           
+# top_p=0.3
+        
+# The markdown validation tool has identified three issues in your README.md file. 
+# Here's a summary of the changes you should make:
+
+# 1. Add a first-line heading, such as `# Heading`, at the beginning of the README.md 
+# file to comply with Rule ID: MD041.
+# 2. Break long lines into shorter ones to ensure they don't exceed 80 characters. 
+# You can use soft wraps or add line breaks where necessary. 
+# This will help you adhere to Rule ID: MD013.
+# 3. Review each line in the README.md file and ensure they don't exceed 80 characters. 
+# If necessary, break up long lines or rephrase sentences to fit within the character 
+# limit. This will also help you comply with Rule ID: MD013.
