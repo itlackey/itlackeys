@@ -10,7 +10,7 @@ from tools.MarkdownTools import markdown_validation_tool
 load_dotenv()
 
 
-default_llm = Ollama(model=os.environ.get("ITL_MAIN_MODEL_NAME", "openhermes"))
+default_llm = Ollama(model= "openhermes")
 
   
 def process_markdown_document(filename):
@@ -36,19 +36,22 @@ def process_markdown_document(filename):
                             DO NOT provide examples of how to fix the issues.""",
                     backstory="""You are an expert business analyst 
 					and software QA specialist. You provide high quality, 
-                    thorough, insightful and actionable feedback.""",
+                    thorough, insightful and actionable feedback via 
+                    detailed list of changes and actionable tasks.""",
                     allow_delegation=False, 
                     verbose=True,
                     tools=[markdown_validation_tool],
                     llm=default_llm)
     
     file_editor_agent = Agent(role='File Editor',
-                    goal="""To take a like of changes and apply them to a file.""",
+                    goal="""To take a list of changes and apply them to a file.
+                    If there is an error while editing a file, you should inform 
+                    the team that you cannot currently edit the file.""",
                     backstory="""You are an expert developer and content writer. 
                     You edit documents based on the provided instructions.""",
                     allow_delegation=False, 
                     verbose=True,
-                    tools=[file_editor_tool],
+                    tools=[file_editor_tool, markdown_validation_tool],
                     llm=default_llm)
 
 
@@ -66,6 +69,10 @@ def process_markdown_document(filename):
 			Get the validation results from the tool 
 			and then summarize it into a list of changes
 			the developer should make to the document.
+            DO NOT include examples of how to fix the issues.
+            DO NOT change any of the content of the document or
+            add content to it. It is critical to your task to
+            only respond with a list of changes.
 			
 			If you already know the answer or if you do not need 
 			to use a tool, return it as your Final Answer.""",
@@ -77,7 +84,11 @@ def process_markdown_document(filename):
 			the file(s) at this path: {filename}
             
             Once the file is edited, return the result as your Final Answer.
-            
+            If there is an error while editing a file, you should inform 
+            the team that you cannot currently edit the file.
+            If there are no changes needed to the file,
+            your taks is complete, and you should inform the team.
+
 			Be sure to pass only the file path and the complete set of instructions
             you receiveto the file_editor_tool.
 
