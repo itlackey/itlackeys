@@ -10,9 +10,10 @@ from tools.MarkdownTools import markdown_validation_tool
 load_dotenv()
 
 
-default_llm = Ollama(model= "openhermes")
+hermes_llm = Ollama(model="openhermes")
+coder_llm = Ollama(model="deepseek-coder")
+phi_llm = Ollama(model="phi")
 
-  
 def process_markdown_document(filename):
     """
     Processes a markdown document by reviewing its syntax validation 
@@ -41,7 +42,7 @@ def process_markdown_document(filename):
                     allow_delegation=False, 
                     verbose=True,
                     tools=[markdown_validation_tool],
-                    llm=default_llm)
+                    llm=hermes_llm)
     
     file_editor_agent = Agent(role='File Editor',
                     goal="""To take a list of changes and apply them to a file.
@@ -52,7 +53,7 @@ def process_markdown_document(filename):
                     allow_delegation=False, 
                     verbose=True,
                     tools=[file_editor_tool, markdown_validation_tool],
-                    llm=default_llm)
+                    llm=coder_llm)
 
 
     # Define Tasks Using Crew Tools

@@ -1,3 +1,4 @@
+import os
 import sys
 from langchain.tools import tool
 from pymarkdown.api import PyMarkdownApi, PyMarkdownApiException
@@ -19,7 +20,10 @@ def markdown_validation_tool(file_path: str) -> str:
 
     scan_result = None
     try:
-        scan_result = PyMarkdownApi().scan_path(file_path)
+        # if not (os.path.exists(file_path)):
+        #    return "Could not validate file. The provided file path does not exist."
+
+        scan_result = PyMarkdownApi().scan_path(file_path.rstrip().lstrip())
         results = str(scan_result)    
         return results  # Return the reviewed document
     except PyMarkdownApiException as this_exception:
