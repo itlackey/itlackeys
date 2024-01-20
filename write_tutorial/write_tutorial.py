@@ -25,7 +25,7 @@ hermes_llm = Ollama(model="openhermes")
 mixtral_llm = Ollama(model="dolphin-mixtral")
 mistral_llm = Ollama(model="mistral")
 
-default_llm = mistral_llm
+default_llm = hermes_llm
 
 
 # Create a DuckDuckGo search tool
@@ -38,8 +38,12 @@ ddg_search_tool = Tool(
 def write_article(tutorial_topic):
     # Define Agents
     research_analyst = Agent(
-        role='Research Analyst',
-        backstory="You have built a career researching and publishing of technical articles.",
+        role='Researcher',
+        backstory="""
+        You are a Senior Research Analyst at a leading tech think tank.
+        Your expertise lies in researching and relaying technical guidance. 
+        You have a knack for dissecting complex information and providing actionable insights.
+        """,
         goal=f"""Create an outline for a technical article about the following topic:
         
         <BEGIN TOPIC>
@@ -57,8 +61,14 @@ def write_article(tutorial_topic):
     )
 
     technical_writer = Agent(
-        role='Technical Writer',
-        backstory="You have built a career writing technical articles.",
+        role='Writer',
+        backstory=""""You are an award winning technical writer. 
+        You have a passion for writing technical articles for developers and
+        tech enthusiasts. You have a knack for writing technical articles
+        that are well written and easy to read. You are known for 
+        reading documentation on the web and turning it into 
+        digestable and enjoyable technical articles.
+        """,
         goal=f"""Write the technical article about the following topic:
         <BEGIN TOPIC>
         {tutorial_topic} 
@@ -90,7 +100,7 @@ def write_article(tutorial_topic):
     )
 
     project_manager = Agent(
-        role='Project Manager',
+        role='Manager',
         goal="""Interact with the user through the human tools to request approvals.
             You are also responsible for ensuring the content is written to the correct file.
             It is VERY IMPORTANT that you DO NOT modify the content of the outline or the article.
@@ -110,8 +120,8 @@ def write_article(tutorial_topic):
                             <END ARTICLE>
             
             """,
-        backstory="You have built a career as a project manager working with customers and project teams.",
-        tools=[write_article_to_markdown, write_outline_to_markdown] + human_tools,  # Assign the search tool
+        backstory="""You have built a career as a project manager working with customers and project teams.""",
+        tools=[write_article_to_markdown, write_outline_to_markdown, read_outline_from_file] + human_tools,  # Assign the search tool
         verbose=True,
         llm=default_llm,
         allow_delegation=True
@@ -191,6 +201,7 @@ def write_article(tutorial_topic):
             If the outline is rejected, do NOT write the outline to a markdown file.
             Instead, return 'The outline was rejected.' as your final answer.
 
+            Once the outline has been writeen to a file the task is complete.
         """,
         agent=project_manager,
         tools=[write_outline_to_markdown]
@@ -213,23 +224,29 @@ def write_article(tutorial_topic):
     outline_result = crew.kickoff()
     print(outline_result)
 
-    task_article_writing = Task(
-        description=f"""Write a detailed article based on the topic provided below.    
-        Here is the topic: 
-        
-        <BEGIN TOPIC>
-        {tutorial_topic}
-        <END TOPIC>
 
-        You can read the outline from the 'outline.md' file using the 'read_outline_from_file' tool.
+    task_read_outline = Task(
+        description="""Read the outline from the 'outline.md' file.:
+
+        You can read the outline from the 'outline.md' file 
+        using the 'read_outline_from_file' tool and return the content
+        to the crew as your final answer.
 
         Use the 'read_outline_from_file' tool like this:
         Action: read_outline_from_file
         Action Input: [filename]
+        Observation:
+         
+        """,
+        agent=project_manager,
+        tools=[read_outline_from_file, ddg_search_tool]
+    )
 
-        Replace [filename] with the filename of the outline.
+    task_article_writing = Task(
+        description=f"""Write a detailed article about {tutorial_topic}
+        based on the outline provided in the 'outline.md' file.
         
-        Write a detailed article based on the topic provided above and the outline from the 'outline.md' file.
+        Use the search tool to look up additional information about the topic.        
         Each section of the outline should have at least one paragraph in the article.
         Be sure to include code samples using markdown code blocks in the article.
         Be sure to include links to documentation or repositories when possible.
@@ -246,7 +263,7 @@ def write_article(tutorial_topic):
     
         """,
         agent=technical_writer,
-        tools=[read_outline_from_file]
+        tools=[ddg_search_tool, write_article_to_markdown]+human_tools
     )
 
     task_article_verification = Task(
@@ -264,27 +281,29 @@ def write_article(tutorial_topic):
             <END ARTICLE>\n\n
             Do you approve this article?
             
-            The supervisor will review the article and provide feedback.
+            The human supervisor will review the article and provide feedback.
 
-            If the article is rejected, continue to refine the article based on the feedback.
+            If the article is rejected, ask the writer to refine the article based on the feedback.
     
-            If the article is approved, then return the content of the article as your final answer
-            in the following format:
+            If the article is approved, it is VERY important that you then return 
+            the content of the article as your final answer in the following format:
 
             Final Answer:
             <BEGIN ARTICLE>
-            [IMPORTANT: Place the full article content here]
-            <END ARTICLE>            
+            [article_content]
+            <END ARTICLE>
         """,
-        agent=project_manager,
+        agent=technical_writer,
         tools=[write_article_to_markdown]+human_tools  # Using the 'human tool' for approval
     )
     task_article_saving = Task(
-        description="""            
-            If the article is approved, use the 'write_article_to_markdown' tool like this:
+        description=""" 
+            If the article was rejected, skip this task.
+
+            Otheriewise, use the 'write_article_to_markdown' tool to write the article to a markdown file like this:
             Action: write_article_to_markdown
             Action Input:<BEGIN ARTICLE>
-                        [article]
+                        [article_content]
                         <END ARTICLE>
             
             Then return the article as your final answer.
@@ -292,7 +311,7 @@ def write_article(tutorial_topic):
             If the article is rejected, do NOT write the article to a markdown file.
             Instead, return 'The article was rejected.' as your final answer.
         """,
-        agent=project_manager,
+        agent=technical_writer,
         tools=[write_article_to_markdown]
     )
     task_publishing = Task(
@@ -302,10 +321,10 @@ def write_article(tutorial_topic):
     )
 
     article_crew = Crew(
-        agents=[ technical_writer, project_manager],
+        agents=[technical_writer, project_manager],
         tasks=[
             #task_outline_creation,
-            #task_outline_verification,
+            task_read_outline,
             task_article_writing,
             task_article_verification,
             task_article_saving

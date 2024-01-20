@@ -1,23 +1,24 @@
 <BEGIN OUTLINE>
 ## Introduction
-- Briefly introduce Crew AI and its purpose
-- Mention the growing importance of Large Language Models (LLMs) in various applications
-
-## Why is Crew AI Awesome?
-- Discuss the advantages of using Crew AI, such as harnessing collective power of AI agents
-- Explain the benefits of streamlined decision-making and enhanced creativity
-
-## Simplifying the Design with Local LLMs
-### Prerequisites
-- Install and prepare the necessary files for CrewAI and LangChain (Dockerfile, requirements.txt, Python Script)
-
-### Building the CrewAI Container
-- Explain the process of building the container image and preparing the files
-
-### Using Local LLMs with Crew AI
-- Discuss how to select Ollama models, provide context, and define roles
-- Share any best practices or challenges encountered when using local LLMs with Crew AI (if available)
-
-## Benefits of Using Local LLMs with Crew AI
-- Discuss advantages such as reduced latency and cost-efficiency
+* Explanation of Crew AI Python Framework and its capabilities
+	+ Local LLMs
+	+ Various applications like Ollama, LM Studio, FastChat
+	+ Connecting to Azure Open AI, Mistral API, Hugging Face endpoints
+* Prerequisites: Docker installation
+## Setting Up Crew AI
+1. Installation
+	+ pip install crewai
+2. Additional packages (if needed)
+	+ duckduckgo-search for internet search capabilities
+3. Setting up a Crew with Off-line and Local Model Access
+* No internet connection required
+* Running models locally
+## Using Crew AI with Local LLMs
+1. Setting up the environment
+2. Integrating with various applications like Ollama, LM Studio, FastChat
+	+ Explanation of each application's integration process
+## Connecting Crew AI to Azure Open AI, Mistral API, and Hugging Face Endpoints
+1. Understanding how to connect to external endpoints
+2. Configuring the connection for each endpoint (Azure Open AI, Mistral API, Hugging Face)
+* Provide relevant code examples or instructions if possible
 <END OUTLINE>
