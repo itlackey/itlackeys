@@ -13,15 +13,16 @@ default_model_name = os.environ.get("ITL_MAIN_MODEL_NAME", "gpt-3.5-turbo")
 hermes_llm = Ollama(model="openhermes")
 mixtral_llm = Ollama(model="dolphin-mixtral")
 mistral_llm = Ollama(model="mistral")
-coder_llm = Ollama(model="magicoder:7b-s-cl-q5_K_M")
 phi_llm = Ollama(model="phi")
+coder_llm = Ollama(model="magicoder:7b-s-cl-q5_K_M")
+starling_llm = Ollama(model="starling-lm:7b-alpha-q8_0")
 api_llm = ChatOpenAI(openai_api_base=os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1"),
                         openai_api_key=os.environ.get("OPENAI_API_KEY"),
                         temperature=0.1,                        
                         model_name="vicuna-7b-v1.5")
                         #,top_p=0.3)
 
-default_llm = api_llm
+default_llm = starling_llm
 
 
 def process_markdown_document(filename):

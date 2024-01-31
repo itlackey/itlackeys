@@ -25,7 +25,8 @@ hermes_llm = Ollama(model="openhermes")
 mixtral_llm = Ollama(model="dolphin-mixtral")
 mistral_llm = Ollama(model="mistral")
 
-default_llm = hermes_llm
+starling_llm = Ollama(model="starling-lm:7b-alpha-q8_0")
+default_llm = starling_llm
 
 
 # Create a DuckDuckGo search tool
@@ -212,7 +213,7 @@ def write_article(tutorial_topic):
         agents=[research_analyst, project_manager],
         tasks=[
             task_outline_creation,
-            task_outline_verification,
+            #task_outline_verification,
             task_outline_saving
         ],
         process=Process.sequential,
