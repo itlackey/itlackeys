@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "itlackey_assistants"
+version = "0.0.1"
+description = "Set of tools and agents for the crewAI framework"
+authors = ["ITLackey"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<=3.13"
+crewai = "*"
+"crewai[tools]" = "*"
+duckduckgo-search="*"
+openai=">=1.5.0"
+python-dotenv=">=1.0.0"
+markdown="*"
+pymarkdownlnt="*"
+
+[tool.poetry.urls]
+Repository = "https://github.com/itlackey/itlackeys"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

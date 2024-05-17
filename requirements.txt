@@ -1,9 +1,10 @@
-git+https://github.com/paul-gauthier/aider.git
+#git+https://github.com/paul-gauthier/aider.git
 #aider-chat==0.20.0 #had to use GH link due to pip version issue with openai dependency
 crewai
+crewai[tools]
 duckduckgo-search
 openai>=1.5.0
-python-dotenv==0.19.2
-pyautogen
+python-dotenv>=1.0.0
+#pyautogen
 markdown
 pymarkdownlnt
